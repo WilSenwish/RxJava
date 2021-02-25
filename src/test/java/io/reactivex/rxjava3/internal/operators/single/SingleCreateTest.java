@@ -25,18 +25,14 @@ import io.reactivex.rxjava3.disposables.*;
 import io.reactivex.rxjava3.exceptions.TestException;
 import io.reactivex.rxjava3.functions.Cancellable;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
-import io.reactivex.rxjava3.testsupport.TestHelper;
+import io.reactivex.rxjava3.testsupport.*;
 
 public class SingleCreateTest extends RxJavaTest {
 
-    @Test(expected = NullPointerException.class)
-    public void nullArgument() {
-        Single.create(null);
-    }
-
     @Test
+    @SuppressUndeliverable
     public void basic() {
-        final Disposable d = Disposables.empty();
+        final Disposable d = Disposable.empty();
 
         Single.<Integer>create(new SingleOnSubscribe<Integer>() {
             @Override
@@ -56,9 +52,10 @@ public class SingleCreateTest extends RxJavaTest {
     }
 
     @Test
+    @SuppressUndeliverable
     public void basicWithCancellable() {
-        final Disposable d1 = Disposables.empty();
-        final Disposable d2 = Disposables.empty();
+        final Disposable d1 = Disposable.empty();
+        final Disposable d2 = Disposable.empty();
 
         Single.<Integer>create(new SingleOnSubscribe<Integer>() {
             @Override
@@ -85,8 +82,9 @@ public class SingleCreateTest extends RxJavaTest {
     }
 
     @Test
+    @SuppressUndeliverable
     public void basicWithError() {
-        final Disposable d = Disposables.empty();
+        final Disposable d = Disposable.empty();
 
         Single.<Integer>create(new SingleOnSubscribe<Integer>() {
             @Override
@@ -193,7 +191,7 @@ public class SingleCreateTest extends RxJavaTest {
         Single.create(new SingleOnSubscribe<Object>() {
             @Override
             public void subscribe(SingleEmitter<Object> s) throws Exception {
-                Disposable d = Disposables.empty();
+                Disposable d = Disposable.empty();
                 s.setDisposable(d);
                 try {
                     s.onSuccess(1);
@@ -257,7 +255,7 @@ public class SingleCreateTest extends RxJavaTest {
         Single.create(new SingleOnSubscribe<Object>() {
             @Override
             public void subscribe(SingleEmitter<Object> s) throws Exception {
-                Disposable d = Disposables.empty();
+                Disposable d = Disposable.empty();
                 s.setDisposable(d);
                 try {
                     s.onError(new IOException());

@@ -13,7 +13,7 @@
 
 package io.reactivex.rxjava3.internal.operators.maybe;
 
-import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
 import io.reactivex.rxjava3.core.*;
@@ -21,14 +21,15 @@ import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.exceptions.Exceptions;
 import io.reactivex.rxjava3.functions.Function;
 import io.reactivex.rxjava3.internal.disposables.DisposableHelper;
-import io.reactivex.rxjava3.internal.functions.ObjectHelper;
 
 /**
  * Maps the success value of the source MaybeSource into a Single.
+ * <p>History: 2.0.2 - experimental
  * @param <T> the input value type
  * @param <R> the result value type
+ * @since 2.1
  */
-public final class MaybeFlatMapSingle<T, R> extends Single<R> {
+public final class MaybeFlatMapSingle<T, R> extends Maybe<R> {
 
     final MaybeSource<T> source;
 
@@ -40,8 +41,8 @@ public final class MaybeFlatMapSingle<T, R> extends Single<R> {
     }
 
     @Override
-    protected void subscribeActual(SingleObserver<? super R> downstream) {
-        source.subscribe(new FlatMapMaybeObserver<T, R>(downstream, mapper));
+    protected void subscribeActual(MaybeObserver<? super R> downstream) {
+        source.subscribe(new FlatMapMaybeObserver<>(downstream, mapper));
     }
 
     static final class FlatMapMaybeObserver<T, R>
@@ -50,11 +51,11 @@ public final class MaybeFlatMapSingle<T, R> extends Single<R> {
 
         private static final long serialVersionUID = 4827726964688405508L;
 
-        final SingleObserver<? super R> downstream;
+        final MaybeObserver<? super R> downstream;
 
         final Function<? super T, ? extends SingleSource<? extends R>> mapper;
 
-        FlatMapMaybeObserver(SingleObserver<? super R> actual, Function<? super T, ? extends SingleSource<? extends R>> mapper) {
+        FlatMapMaybeObserver(MaybeObserver<? super R> actual, Function<? super T, ? extends SingleSource<? extends R>> mapper) {
             this.downstream = actual;
             this.mapper = mapper;
         }
@@ -81,7 +82,7 @@ public final class MaybeFlatMapSingle<T, R> extends Single<R> {
             SingleSource<? extends R> ss;
 
             try {
-                ss = ObjectHelper.requireNonNull(mapper.apply(value), "The mapper returned a null SingleSource");
+                ss = Objects.requireNonNull(mapper.apply(value), "The mapper returned a null SingleSource");
             } catch (Throwable ex) {
                 Exceptions.throwIfFatal(ex);
                 onError(ex);
@@ -100,7 +101,7 @@ public final class MaybeFlatMapSingle<T, R> extends Single<R> {
 
         @Override
         public void onComplete() {
-            downstream.onError(new NoSuchElementException());
+            downstream.onComplete();
         }
     }
 
@@ -108,9 +109,9 @@ public final class MaybeFlatMapSingle<T, R> extends Single<R> {
 
         final AtomicReference<Disposable> parent;
 
-        final SingleObserver<? super R> downstream;
+        final MaybeObserver<? super R> downstream;
 
-        FlatMapSingleObserver(AtomicReference<Disposable> parent, SingleObserver<? super R> downstream) {
+        FlatMapSingleObserver(AtomicReference<Disposable> parent, MaybeObserver<? super R> downstream) {
             this.parent = parent;
             this.downstream = downstream;
         }

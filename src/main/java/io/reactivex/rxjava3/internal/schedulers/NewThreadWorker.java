@@ -17,7 +17,7 @@ import java.util.concurrent.*;
 
 import io.reactivex.rxjava3.annotations.*;
 import io.reactivex.rxjava3.core.Scheduler;
-import io.reactivex.rxjava3.disposables.Disposable;
+import io.reactivex.rxjava3.disposables.*;
 import io.reactivex.rxjava3.internal.disposables.*;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 
@@ -116,10 +116,8 @@ public class NewThreadWorker extends Scheduler.Worker implements Disposable {
     }
 
     /**
-     * Wraps the given runnable into a ScheduledRunnable and schedules it
+     * Wraps and returns the given runnable into a ScheduledRunnable and schedules it
      * on the underlying ScheduledExecutorService.
-     * <p>If the schedule has been rejected, the ScheduledRunnable.wasScheduled will return
-     * false.
      * @param run the runnable instance
      * @param delayTime the time to delay the execution
      * @param unit the time unit

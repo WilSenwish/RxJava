@@ -39,12 +39,12 @@ public class FunctionsTest extends RxJavaTest {
     public void hashSetCallableEnum() {
         // inlined TestHelper.checkEnum due to access restrictions
         try {
-            Method m = Functions.HashSetCallable.class.getMethod("values");
+            Method m = Functions.HashSetSupplier.class.getMethod("values");
             m.setAccessible(true);
-            Method e = Functions.HashSetCallable.class.getMethod("valueOf", String.class);
+            Method e = Functions.HashSetSupplier.class.getMethod("valueOf", String.class);
             e.setAccessible(true);
 
-            for (Enum<HashSetCallable> o : (Enum<HashSetCallable>[])m.invoke(null)) {
+            for (Enum<HashSetSupplier> o : (Enum<HashSetSupplier>[])m.invoke(null)) {
                 assertSame(o, e.invoke(null, o.name()));
             }
 
@@ -171,62 +171,6 @@ public class FunctionsTest extends RxJavaTest {
                 return null;
             }
         }).apply(new Object[20]);
-    }
-
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    @Test(expected = NullPointerException.class)
-    public void biFunctionFail() throws Exception {
-        BiFunction biFunction = null;
-        Functions.toFunction(biFunction);
-    }
-
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    @Test(expected = NullPointerException.class)
-    public void function3Fail() throws Exception {
-        Function3 function3 = null;
-        Functions.toFunction(function3);
-    }
-
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    @Test(expected = NullPointerException.class)
-    public void function4Fail() throws Exception {
-        Function4 function4 = null;
-        Functions.toFunction(function4);
-    }
-
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    @Test(expected = NullPointerException.class)
-    public void function5Fail() throws Exception {
-        Function5 function5 = null;
-        Functions.toFunction(function5);
-    }
-
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    @Test(expected = NullPointerException.class)
-    public void function6Fail() throws Exception {
-        Function6 function6 = null;
-        Functions.toFunction(function6);
-    }
-
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    @Test(expected = NullPointerException.class)
-    public void function7Fail() throws Exception {
-        Function7 function7 = null;
-        Functions.toFunction(function7);
-    }
-
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    @Test(expected = NullPointerException.class)
-    public void function8Fail() throws Exception {
-        Function8 function8 = null;
-        Functions.toFunction(function8);
-    }
-
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    @Test(expected = NullPointerException.class)
-    public void function9Fail() throws Exception {
-        Function9 function9 = null;
-        Functions.toFunction(function9);
     }
 
     @Test

@@ -15,6 +15,7 @@ package io.reactivex.rxjava3.internal.operators.flowable;
 
 import static org.junit.Assert.*;
 
+import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -24,17 +25,21 @@ import org.reactivestreams.*;
 import io.reactivex.rxjava3.core.*;
 import io.reactivex.rxjava3.exceptions.*;
 import io.reactivex.rxjava3.functions.*;
+import io.reactivex.rxjava3.internal.functions.Functions;
 import io.reactivex.rxjava3.internal.fuseable.QueueFuseable;
 import io.reactivex.rxjava3.internal.subscriptions.BooleanSubscription;
+import io.reactivex.rxjava3.observers.TestObserver;
+import io.reactivex.rxjava3.plugins.RxJavaPlugins;
+import io.reactivex.rxjava3.processors.PublishProcessor;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import io.reactivex.rxjava3.subscribers.*;
-import io.reactivex.rxjava3.testsupport.TestSubscriberEx;
+import io.reactivex.rxjava3.testsupport.*;
 
 public class FlowableOnBackpressureBufferTest extends RxJavaTest {
 
     @Test
     public void noBackpressureSupport() {
-        TestSubscriber<Long> ts = new TestSubscriber<Long>(0L);
+        TestSubscriber<Long> ts = new TestSubscriber<>(0L);
         // this will be ignored
         ts.request(100);
         // we take 500 so it unsubscribes
@@ -48,7 +53,7 @@ public class FlowableOnBackpressureBufferTest extends RxJavaTest {
     public void fixBackpressureWithBuffer() throws InterruptedException {
         final CountDownLatch l1 = new CountDownLatch(100);
         final CountDownLatch l2 = new CountDownLatch(150);
-        TestSubscriber<Long> ts = new TestSubscriber<Long>(new DefaultSubscriber<Long>() {
+        TestSubscriber<Long> ts = new TestSubscriber<>(new DefaultSubscriber<Long>() {
 
             @Override
             protected void onStart() {
@@ -105,17 +110,19 @@ public class FlowableOnBackpressureBufferTest extends RxJavaTest {
     public void fixBackpressureBoundedBuffer() throws InterruptedException {
         final CountDownLatch l1 = new CountDownLatch(100);
         final CountDownLatch backpressureCallback = new CountDownLatch(1);
-        TestSubscriber<Long> ts = new TestSubscriber<Long>(new DefaultSubscriber<Long>() {
+        TestSubscriber<Long> ts = new TestSubscriber<>(new DefaultSubscriber<Long>() {
 
             @Override
             protected void onStart() {
             }
 
             @Override
-            public void onComplete() { }
+            public void onComplete() {
+            }
 
             @Override
-            public void onError(Throwable e) { }
+            public void onError(Throwable e) {
+            }
 
             @Override
             public void onNext(Long t) {
@@ -206,14 +213,6 @@ public class FlowableOnBackpressureBufferTest extends RxJavaTest {
     @Test(expected = IllegalArgumentException.class)
     public void fixBackpressureBufferZeroCapacity2() throws InterruptedException {
         Flowable.empty().onBackpressureBuffer(0);
-    }
-
-    @Test(expected = NullPointerException.class)
-    public void fixBackpressureBufferNullStrategy() throws InterruptedException {
-        Flowable.empty().onBackpressureBuffer(10, new Action() {
-            @Override
-            public void run() { }
-        }, null);
     }
 
     @Test
@@ -307,5 +306,48 @@ public class FlowableOnBackpressureBufferTest extends RxJavaTest {
 
         ts.assertFusionMode(QueueFuseable.NONE)
         .assertEmpty();
+    }
+
+    @Test
+    public void fusedNoConcurrentCleanDueToCancel() {
+        for (int j = 0; j < TestHelper.RACE_LONG_LOOPS; j++) {
+            List<Throwable> errors = TestHelper.trackPluginErrors();
+            try {
+                final PublishProcessor<Integer> pp = PublishProcessor.create();
+
+                TestObserver<Integer> to = pp.onBackpressureBuffer(4, false, true)
+                .observeOn(Schedulers.io())
+                .map(Functions.<Integer>identity())
+                .observeOn(Schedulers.single())
+                .firstOrError()
+                .test();
+
+                for (int i = 0; pp.hasSubscribers(); i++) {
+                    pp.onNext(i);
+                }
+
+                to
+                .awaitDone(5, TimeUnit.SECONDS)
+                ;
+
+                if (!errors.isEmpty()) {
+                    throw new CompositeException(errors);
+                }
+
+                to.assertResult(0);
+            } finally {
+                RxJavaPlugins.reset();
+            }
+        }
+    }
+
+    @Test
+    public void doubleOnSubscribe() {
+        TestHelper.checkDoubleOnSubscribeFlowable(f -> f.onBackpressureBuffer());
+    }
+
+    @Test
+    public void badRequest() {
+        TestHelper.assertBadRequestReported(Flowable.never().onBackpressureBuffer());
     }
 }

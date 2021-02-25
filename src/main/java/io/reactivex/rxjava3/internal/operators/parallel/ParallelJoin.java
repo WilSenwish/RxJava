@@ -50,9 +50,9 @@ public final class ParallelJoin<T> extends Flowable<T> {
     protected void subscribeActual(Subscriber<? super T> s) {
         JoinSubscriptionBase<T> parent;
         if (delayErrors) {
-            parent = new JoinSubscriptionDelayError<T>(s, source.parallelism(), prefetch);
+            parent = new JoinSubscriptionDelayError<>(s, source.parallelism(), prefetch);
         } else {
-            parent = new JoinSubscription<T>(s, source.parallelism(), prefetch);
+            parent = new JoinSubscription<>(s, source.parallelism(), prefetch);
         }
         s.onSubscribe(parent);
         source.subscribe(parent.subscribers);
@@ -81,7 +81,7 @@ public final class ParallelJoin<T> extends Flowable<T> {
             JoinInnerSubscriber<T>[] a = new JoinInnerSubscriber[n];
 
             for (int i = 0; i < n; i++) {
-                a[i] = new JoinInnerSubscriber<T>(this, prefetch);
+                a[i] = new JoinInnerSubscriber<>(this, prefetch);
             }
 
             this.subscribers = a;
@@ -298,18 +298,13 @@ public final class ParallelJoin<T> extends Flowable<T> {
                     }
                 }
 
-                if (e != 0 && r != Long.MAX_VALUE) {
-                    requested.addAndGet(-e);
+                if (e != 0) {
+                    BackpressureHelper.produced(requested, e);
                 }
 
-                int w = get();
-                if (w == missed) {
-                    missed = addAndGet(-missed);
-                    if (missed == 0) {
-                        break;
-                    }
-                } else {
-                    missed = w;
+                missed = addAndGet(-missed);
+                if (missed == 0) {
+                    break;
                 }
             }
         }
@@ -350,10 +345,9 @@ public final class ParallelJoin<T> extends Flowable<T> {
                 SimplePlainQueue<T> q = inner.getQueue();
 
                 if (!q.offer(value)) {
-                    if (inner.cancel()) {
-                        errors.tryAddThrowableOrReport(new MissingBackpressureException("Queue full?!"));
-                        done.decrementAndGet();
-                    }
+                    inner.cancel();
+                    errors.tryAddThrowableOrReport(new MissingBackpressureException("Queue full?!"));
+                    done.decrementAndGet();
                 }
 
                 if (getAndIncrement() != 0) {
@@ -464,18 +458,13 @@ public final class ParallelJoin<T> extends Flowable<T> {
                     }
                 }
 
-                if (e != 0 && r != Long.MAX_VALUE) {
-                    requested.addAndGet(-e);
+                if (e != 0) {
+                    BackpressureHelper.produced(requested, e);
                 }
 
-                int w = get();
-                if (w == missed) {
-                    missed = addAndGet(-missed);
-                    if (missed == 0) {
-                        break;
-                    }
-                } else {
-                    missed = w;
+                missed = addAndGet(-missed);
+                if (missed == 0) {
+                    break;
                 }
             }
         }
@@ -550,7 +539,7 @@ public final class ParallelJoin<T> extends Flowable<T> {
         SimplePlainQueue<T> getQueue() {
             SimplePlainQueue<T> q = queue;
             if (q == null) {
-                q = new SpscArrayQueue<T>(prefetch);
+                q = new SpscArrayQueue<>(prefetch);
                 this.queue = q;
             }
             return q;

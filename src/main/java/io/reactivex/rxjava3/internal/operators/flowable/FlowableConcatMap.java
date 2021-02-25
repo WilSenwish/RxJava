@@ -12,14 +12,14 @@
  */
 package io.reactivex.rxjava3.internal.operators.flowable;
 
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Objects;
+import java.util.concurrent.atomic.*;
 
 import org.reactivestreams.*;
 
 import io.reactivex.rxjava3.core.*;
 import io.reactivex.rxjava3.exceptions.Exceptions;
 import io.reactivex.rxjava3.functions.*;
-import io.reactivex.rxjava3.internal.functions.ObjectHelper;
 import io.reactivex.rxjava3.internal.fuseable.*;
 import io.reactivex.rxjava3.internal.queue.SpscArrayQueue;
 import io.reactivex.rxjava3.internal.subscriptions.*;
@@ -46,11 +46,11 @@ public final class FlowableConcatMap<T, R> extends AbstractFlowableWithUpstream<
             int prefetch, ErrorMode errorMode) {
         switch (errorMode) {
         case BOUNDARY:
-            return new ConcatMapDelayed<T, R>(s, mapper, prefetch, false);
+            return new ConcatMapDelayed<>(s, mapper, prefetch, false);
         case END:
-            return new ConcatMapDelayed<T, R>(s, mapper, prefetch, true);
+            return new ConcatMapDelayed<>(s, mapper, prefetch, true);
         default:
-            return new ConcatMapImmediate<T, R>(s, mapper, prefetch);
+            return new ConcatMapImmediate<>(s, mapper, prefetch);
         }
     }
 
@@ -100,7 +100,7 @@ public final class FlowableConcatMap<T, R> extends AbstractFlowableWithUpstream<
             this.mapper = mapper;
             this.prefetch = prefetch;
             this.limit = prefetch - (prefetch >> 2);
-            this.inner = new ConcatMapInner<R>(this);
+            this.inner = new ConcatMapInner<>(this);
             this.errors = new AtomicThrowable();
         }
 
@@ -133,7 +133,7 @@ public final class FlowableConcatMap<T, R> extends AbstractFlowableWithUpstream<
                     }
                 }
 
-                queue = new SpscArrayQueue<T>(prefetch);
+                queue = new SpscArrayQueue<>(prefetch);
 
                 subscribeActual();
 
@@ -195,35 +195,19 @@ public final class FlowableConcatMap<T, R> extends AbstractFlowableWithUpstream<
 
         @Override
         public void onError(Throwable t) {
-            if (errors.tryAddThrowableOrReport(t)) {
-                inner.cancel();
-
-                if (getAndIncrement() == 0) {
-                    errors.tryTerminateConsumer(downstream);
-                }
-            }
+            inner.cancel();
+            HalfSerializer.onError(downstream, t, this, errors);
         }
 
         @Override
         public void innerNext(R value) {
-            if (get() == 0 && compareAndSet(0, 1)) {
-                downstream.onNext(value);
-                if (compareAndSet(1, 0)) {
-                    return;
-                }
-                errors.tryTerminateConsumer(downstream);
-            }
+            HalfSerializer.onNext(downstream, value, this, errors);
         }
 
         @Override
         public void innerError(Throwable e) {
-            if (errors.tryAddThrowableOrReport(e)) {
-                upstream.cancel();
-
-                if (getAndIncrement() == 0) {
-                    errors.tryTerminateConsumer(downstream);
-                }
-            }
+            upstream.cancel();
+            HalfSerializer.onError(downstream, e, this, errors);
         }
 
         @Override
@@ -277,7 +261,7 @@ public final class FlowableConcatMap<T, R> extends AbstractFlowableWithUpstream<
                             Publisher<? extends R> p;
 
                             try {
-                                p = ObjectHelper.requireNonNull(mapper.apply(v), "The mapper returned a null Publisher");
+                                p = Objects.requireNonNull(mapper.apply(v), "The mapper returned a null Publisher");
                             } catch (Throwable e) {
                                 Exceptions.throwIfFatal(e);
 
@@ -318,17 +302,13 @@ public final class FlowableConcatMap<T, R> extends AbstractFlowableWithUpstream<
                                 }
 
                                 if (inner.isUnbounded()) {
-                                    if (get() == 0 && compareAndSet(0, 1)) {
-                                        downstream.onNext(vr);
-                                        if (!compareAndSet(1, 0)) {
-                                            errors.tryTerminateConsumer(downstream);
-                                            return;
-                                        }
+                                    if (!HalfSerializer.onNext(downstream, vr, this, errors)) {
+                                        return;
                                     }
                                     continue;
                                 } else {
                                     active = true;
-                                    inner.setSubscription(new WeakScalarSubscription<R>(vr, inner));
+                                    inner.setSubscription(new SimpleScalarSubscription<>(vr, inner));
                                 }
 
                             } else {
@@ -345,20 +325,22 @@ public final class FlowableConcatMap<T, R> extends AbstractFlowableWithUpstream<
         }
     }
 
-    static final class WeakScalarSubscription<T> implements Subscription {
+    static final class SimpleScalarSubscription<T>
+    extends AtomicBoolean
+    implements Subscription {
+        private static final long serialVersionUID = -7606889335172043256L;
+
         final Subscriber<? super T> downstream;
         final T value;
-        boolean once;
 
-        WeakScalarSubscription(T value, Subscriber<? super T> downstream) {
+        SimpleScalarSubscription(T value, Subscriber<? super T> downstream) {
             this.value = value;
             this.downstream = downstream;
         }
 
         @Override
         public void request(long n) {
-            if (n > 0 && !once) {
-                once = true;
+            if (n > 0L && compareAndSet(false, true)) {
                 Subscriber<? super T> a = downstream;
                 a.onNext(value);
                 a.onComplete();
@@ -479,7 +461,7 @@ public final class FlowableConcatMap<T, R> extends AbstractFlowableWithUpstream<
                             Publisher<? extends R> p;
 
                             try {
-                                p = ObjectHelper.requireNonNull(mapper.apply(v), "The mapper returned a null Publisher");
+                                p = Objects.requireNonNull(mapper.apply(v), "The mapper returned a null Publisher");
                             } catch (Throwable e) {
                                 Exceptions.throwIfFatal(e);
 
@@ -527,7 +509,7 @@ public final class FlowableConcatMap<T, R> extends AbstractFlowableWithUpstream<
                                     continue;
                                 } else {
                                     active = true;
-                                    inner.setSubscription(new WeakScalarSubscription<R>(vr, inner));
+                                    inner.setSubscription(new SimpleScalarSubscription<>(vr, inner));
                                 }
                             } else {
                                 active = true;

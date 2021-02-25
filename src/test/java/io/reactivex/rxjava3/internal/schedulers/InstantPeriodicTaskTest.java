@@ -44,7 +44,12 @@ public class InstantPeriodicTaskTest extends RxJavaTest {
                 }
             }, exec);
 
-            assertNull(task.call());
+            try {
+                task.call();
+                fail("Should have thrown!");
+            } catch (TestException excepted) {
+                // excepted
+            }
 
             TestHelper.assertUndeliverable(errors, 0, TestException.class);
         } finally {
@@ -156,12 +161,12 @@ public class InstantPeriodicTaskTest extends RxJavaTest {
 
             task.dispose();
 
-            FutureTask<Void> f1 = new FutureTask<Void>(Functions.EMPTY_RUNNABLE, null);
+            FutureTask<Void> f1 = new FutureTask<>(Functions.EMPTY_RUNNABLE, null);
             task.setFirst(f1);
 
             assertTrue(f1.isCancelled());
 
-            FutureTask<Void> f2 = new FutureTask<Void>(Functions.EMPTY_RUNNABLE, null);
+            FutureTask<Void> f2 = new FutureTask<>(Functions.EMPTY_RUNNABLE, null);
             task.setRest(f2);
 
             assertTrue(f2.isCancelled());
@@ -187,12 +192,12 @@ public class InstantPeriodicTaskTest extends RxJavaTest {
 
             task.dispose();
 
-            FutureTask<Void> f1 = new FutureTask<Void>(Functions.EMPTY_RUNNABLE, null);
+            FutureTask<Void> f1 = new FutureTask<>(Functions.EMPTY_RUNNABLE, null);
             task.setFirst(f1);
 
             assertTrue(f1.isCancelled());
 
-            FutureTask<Void> f2 = new FutureTask<Void>(Functions.EMPTY_RUNNABLE, null);
+            FutureTask<Void> f2 = new FutureTask<>(Functions.EMPTY_RUNNABLE, null);
             task.setRest(f2);
 
             assertTrue(f2.isCancelled());
@@ -214,7 +219,7 @@ public class InstantPeriodicTaskTest extends RxJavaTest {
                     }
                 }, exec);
 
-                final FutureTask<Void> f1 = new FutureTask<Void>(Functions.EMPTY_RUNNABLE, null);
+                final FutureTask<Void> f1 = new FutureTask<>(Functions.EMPTY_RUNNABLE, null);
                 Runnable r1 = new Runnable() {
                     @Override
                     public void run() {
@@ -251,7 +256,7 @@ public class InstantPeriodicTaskTest extends RxJavaTest {
                     }
                 }, exec);
 
-                final FutureTask<Void> f1 = new FutureTask<Void>(Functions.EMPTY_RUNNABLE, null);
+                final FutureTask<Void> f1 = new FutureTask<>(Functions.EMPTY_RUNNABLE, null);
                 Runnable r1 = new Runnable() {
                     @Override
                     public void run() {

@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.reactivestreams.Subscription;
 
+import io.reactivex.rxjava3.annotations.NonNull;
 import io.reactivex.rxjava3.core.FlowableSubscriber;
 import io.reactivex.rxjava3.internal.subscriptions.SubscriptionHelper;
 import io.reactivex.rxjava3.internal.util.BlockingHelper;
@@ -42,7 +43,7 @@ implements FlowableSubscriber<T>, Future<T>, Subscription {
 
     public FutureSubscriber() {
         super(1);
-        this.upstream = new AtomicReference<Subscription>();
+        this.upstream = new AtomicReference<>();
     }
 
     @Override
@@ -91,7 +92,7 @@ implements FlowableSubscriber<T>, Future<T>, Subscription {
     }
 
     @Override
-    public T get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+    public T get(long timeout, @NonNull TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
         if (getCount() != 0) {
             BlockingHelper.verifyNonBlocking();
             if (!await(timeout, unit)) {
@@ -127,18 +128,16 @@ implements FlowableSubscriber<T>, Future<T>, Subscription {
 
     @Override
     public void onError(Throwable t) {
-        for (;;) {
+        if (error == null) {
             Subscription a = upstream.get();
-            if (a == this || a == SubscriptionHelper.CANCELLED) {
-                RxJavaPlugins.onError(t);
-                return;
-            }
-            error = t;
-            if (upstream.compareAndSet(a, this)) {
+            if (a != this && a != SubscriptionHelper.CANCELLED
+                    && upstream.compareAndSet(a, this)) {
+                error = t;
                 countDown();
                 return;
             }
         }
+        RxJavaPlugins.onError(t);
     }
 
     @Override
@@ -147,15 +146,12 @@ implements FlowableSubscriber<T>, Future<T>, Subscription {
             onError(new NoSuchElementException("The source is empty"));
             return;
         }
-        for (;;) {
-            Subscription a = upstream.get();
-            if (a == this || a == SubscriptionHelper.CANCELLED) {
-                return;
-            }
-            if (upstream.compareAndSet(a, this)) {
-                countDown();
-                return;
-            }
+        Subscription a = upstream.get();
+        if (a == this || a == SubscriptionHelper.CANCELLED) {
+            return;
+        }
+        if (upstream.compareAndSet(a, this)) {
+            countDown();
         }
     }
 

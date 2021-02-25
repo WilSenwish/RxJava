@@ -47,7 +47,7 @@ public class FlowableFromSupplierTest extends RxJavaTest {
 
         Flowable<Object> fromSupplierFlowable = Flowable.fromSupplier(func);
 
-        verifyZeroInteractions(func);
+        verifyNoInteractions(func);
 
         fromSupplierFlowable.subscribe();
 
@@ -121,7 +121,7 @@ public class FlowableFromSupplierTest extends RxJavaTest {
 
         Subscriber<String> subscriber = TestHelper.mockSubscriber();
 
-        TestSubscriber<String> outer = new TestSubscriber<String>(subscriber);
+        TestSubscriber<String> outer = new TestSubscriber<>(subscriber);
 
         fromSupplierFlowable
                 .subscribeOn(Schedulers.computation())
@@ -248,7 +248,7 @@ public class FlowableFromSupplierTest extends RxJavaTest {
     public void undeliverableUponCancellation() throws Exception {
         List<Throwable> errors = TestHelper.trackPluginErrors();
         try {
-            final TestSubscriber<Integer> ts = new TestSubscriber<Integer>();
+            final TestSubscriber<Integer> ts = new TestSubscriber<>();
 
             Flowable.fromSupplier(new Supplier<Integer>() {
                 @Override

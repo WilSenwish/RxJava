@@ -12,6 +12,7 @@
  */
 package io.reactivex.rxjava3.internal.operators.flowable;
 
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.reactivestreams.*;
@@ -19,7 +20,6 @@ import org.reactivestreams.*;
 import io.reactivex.rxjava3.core.*;
 import io.reactivex.rxjava3.exceptions.Exceptions;
 import io.reactivex.rxjava3.functions.*;
-import io.reactivex.rxjava3.internal.functions.ObjectHelper;
 import io.reactivex.rxjava3.internal.fuseable.*;
 import io.reactivex.rxjava3.internal.operators.flowable.FlowableConcatMap.*;
 import io.reactivex.rxjava3.internal.queue.SpscArrayQueue;
@@ -50,13 +50,13 @@ public final class FlowableConcatMapScheduler<T, R> extends AbstractFlowableWith
     protected void subscribeActual(Subscriber<? super R> s) {
         switch (errorMode) {
         case BOUNDARY:
-            source.subscribe(new ConcatMapDelayed<T, R>(s, mapper, prefetch, false, scheduler.createWorker()));
+            source.subscribe(new ConcatMapDelayed<>(s, mapper, prefetch, false, scheduler.createWorker()));
             break;
         case END:
-            source.subscribe(new ConcatMapDelayed<T, R>(s, mapper, prefetch, true, scheduler.createWorker()));
+            source.subscribe(new ConcatMapDelayed<>(s, mapper, prefetch, true, scheduler.createWorker()));
             break;
         default:
-            source.subscribe(new ConcatMapImmediate<T, R>(s, mapper, prefetch, scheduler.createWorker()));
+            source.subscribe(new ConcatMapImmediate<>(s, mapper, prefetch, scheduler.createWorker()));
         }
     }
 
@@ -98,7 +98,7 @@ public final class FlowableConcatMapScheduler<T, R> extends AbstractFlowableWith
             this.mapper = mapper;
             this.prefetch = prefetch;
             this.limit = prefetch - (prefetch >> 2);
-            this.inner = new ConcatMapInner<R>(this);
+            this.inner = new ConcatMapInner<>(this);
             this.errors = new AtomicThrowable();
             this.worker = worker;
         }
@@ -132,7 +132,7 @@ public final class FlowableConcatMapScheduler<T, R> extends AbstractFlowableWith
                     }
                 }
 
-                queue = new SpscArrayQueue<T>(prefetch);
+                queue = new SpscArrayQueue<>(prefetch);
 
                 subscribeActual();
 
@@ -204,9 +204,13 @@ public final class FlowableConcatMapScheduler<T, R> extends AbstractFlowableWith
             }
         }
 
+        boolean tryEnter() {
+            return get() == 0 && compareAndSet(0, 1);
+        }
+
         @Override
         public void innerNext(R value) {
-            if (get() == 0 && compareAndSet(0, 1)) {
+            if (tryEnter()) {
                 downstream.onNext(value);
                 if (compareAndSet(1, 0)) {
                     return;
@@ -287,7 +291,7 @@ public final class FlowableConcatMapScheduler<T, R> extends AbstractFlowableWith
                         Publisher<? extends R> p;
 
                         try {
-                            p = ObjectHelper.requireNonNull(mapper.apply(v), "The mapper returned a null Publisher");
+                            p = Objects.requireNonNull(mapper.apply(v), "The mapper returned a null Publisher");
                         } catch (Throwable e) {
                             Exceptions.throwIfFatal(e);
 
@@ -325,12 +329,12 @@ public final class FlowableConcatMapScheduler<T, R> extends AbstractFlowableWith
                                 return;
                             }
 
-                            if (vr == null) {
+                            if (vr == null || cancelled) {
                                 continue;
                             }
 
                             if (inner.isUnbounded()) {
-                                if (get() == 0 && compareAndSet(0, 1)) {
+                                if (tryEnter()) {
                                     downstream.onNext(vr);
                                     if (!compareAndSet(1, 0)) {
                                         errors.tryTerminateConsumer(downstream);
@@ -341,7 +345,7 @@ public final class FlowableConcatMapScheduler<T, R> extends AbstractFlowableWith
                                 continue;
                             } else {
                                 active = true;
-                                inner.setSubscription(new WeakScalarSubscription<R>(vr, inner));
+                                inner.setSubscription(new SimpleScalarSubscription<>(vr, inner));
                             }
 
                         } else {
@@ -474,7 +478,7 @@ public final class FlowableConcatMapScheduler<T, R> extends AbstractFlowableWith
                         Publisher<? extends R> p;
 
                         try {
-                            p = ObjectHelper.requireNonNull(mapper.apply(v), "The mapper returned a null Publisher");
+                            p = Objects.requireNonNull(mapper.apply(v), "The mapper returned a null Publisher");
                         } catch (Throwable e) {
                             Exceptions.throwIfFatal(e);
 
@@ -515,7 +519,7 @@ public final class FlowableConcatMapScheduler<T, R> extends AbstractFlowableWith
                                 vr = null;
                             }
 
-                            if (vr == null) {
+                            if (vr == null || cancelled) {
                                 continue;
                             }
 
@@ -524,7 +528,7 @@ public final class FlowableConcatMapScheduler<T, R> extends AbstractFlowableWith
                                 continue;
                             } else {
                                 active = true;
-                                inner.setSubscription(new WeakScalarSubscription<R>(vr, inner));
+                                inner.setSubscription(new SimpleScalarSubscription<>(vr, inner));
                             }
                         } else {
                             active = true;

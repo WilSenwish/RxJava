@@ -65,7 +65,7 @@ public class ScheduledRunnableTest extends RxJavaTest {
             final ScheduledRunnable run = new ScheduledRunnable(Functions.EMPTY_RUNNABLE, set);
             set.add(run);
 
-            final FutureTask<Object> ft = new FutureTask<Object>(Functions.EMPTY_RUNNABLE, 0);
+            final FutureTask<Object> ft = new FutureTask<>(Functions.EMPTY_RUNNABLE, 0);
 
             Runnable r1 = new Runnable() {
                 @Override
@@ -94,7 +94,7 @@ public class ScheduledRunnableTest extends RxJavaTest {
             final ScheduledRunnable run = new ScheduledRunnable(Functions.EMPTY_RUNNABLE, set);
             set.add(run);
 
-            final FutureTask<Object> ft = new FutureTask<Object>(Functions.EMPTY_RUNNABLE, 0);
+            final FutureTask<Object> ft = new FutureTask<>(Functions.EMPTY_RUNNABLE, 0);
 
             Runnable r1 = new Runnable() {
                 @Override
@@ -208,7 +208,12 @@ public class ScheduledRunnableTest extends RxJavaTest {
             }, set);
             set.add(run);
 
-            run.run();
+            try {
+                run.run();
+                fail("Should have thrown!");
+            } catch (TestException expected) {
+                // expected
+            }
 
             assertTrue(run.isDisposed());
 
@@ -266,7 +271,7 @@ public class ScheduledRunnableTest extends RxJavaTest {
             final ScheduledRunnable run = new ScheduledRunnable(Functions.EMPTY_RUNNABLE, set);
             set.add(run);
 
-            final FutureTask<Void> ft = new FutureTask<Void>(Functions.EMPTY_RUNNABLE, null);
+            final FutureTask<Void> ft = new FutureTask<>(Functions.EMPTY_RUNNABLE, null);
 
             Runnable r1 = new Runnable() {
                 @Override
@@ -316,7 +321,7 @@ public class ScheduledRunnableTest extends RxJavaTest {
             final ScheduledRunnable run = new ScheduledRunnable(r0, set);
             set.add(run);
 
-            final FutureTask<Void> ft = new FutureTask<Void>(run, null);
+            final FutureTask<Void> ft = new FutureTask<>(run, null);
 
             Runnable r2 = new Runnable() {
                 @Override
@@ -393,5 +398,30 @@ public class ScheduledRunnableTest extends RxJavaTest {
         assertTrue(run.isDisposed());
 
         assertFalse(set.remove(run));
+    }
+
+    @Test
+    public void toStringStates() {
+        CompositeDisposable set = new CompositeDisposable();
+        ScheduledRunnable task = new ScheduledRunnable(Functions.EMPTY_RUNNABLE, set);
+
+        assertEquals("ScheduledRunnable[Waiting]", task.toString());
+
+        task.set(ScheduledRunnable.THREAD_INDEX, Thread.currentThread());
+
+        assertEquals("ScheduledRunnable[Running on " + Thread.currentThread() + "]", task.toString());
+
+        task.dispose();
+
+        assertEquals("ScheduledRunnable[Disposed(Sync)]", task.toString());
+
+        task.set(ScheduledRunnable.FUTURE_INDEX, ScheduledRunnable.DONE);
+
+        assertEquals("ScheduledRunnable[Finished]", task.toString());
+
+        task = new ScheduledRunnable(Functions.EMPTY_RUNNABLE, set);
+        task.dispose();
+
+        assertEquals("ScheduledRunnable[Disposed(Async)]", task.toString());
     }
 }

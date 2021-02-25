@@ -13,6 +13,7 @@
 
 package io.reactivex.rxjava3.internal.operators.maybe;
 
+import java.util.Objects;
 import java.util.concurrent.atomic.*;
 
 import io.reactivex.rxjava3.core.*;
@@ -20,7 +21,6 @@ import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.exceptions.Exceptions;
 import io.reactivex.rxjava3.functions.Function;
 import io.reactivex.rxjava3.internal.disposables.DisposableHelper;
-import io.reactivex.rxjava3.internal.functions.ObjectHelper;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 
 public final class MaybeZipArray<T, R> extends Maybe<R> {
@@ -40,11 +40,11 @@ public final class MaybeZipArray<T, R> extends Maybe<R> {
         int n = sources.length;
 
         if (n == 1) {
-            sources[0].subscribe(new MaybeMap.MapMaybeObserver<T, R>(observer, new SingletonArrayFunc()));
+            sources[0].subscribe(new MaybeMap.MapMaybeObserver<>(observer, new SingletonArrayFunc()));
             return;
         }
 
-        ZipCoordinator<T, R> parent = new ZipCoordinator<T, R>(observer, n, zipper);
+        ZipCoordinator<T, R> parent = new ZipCoordinator<>(observer, n, zipper);
 
         observer.onSubscribe(parent);
 
@@ -73,7 +73,7 @@ public final class MaybeZipArray<T, R> extends Maybe<R> {
 
         final ZipMaybeObserver<T>[] observers;
 
-        final Object[] values;
+        Object[] values;
 
         @SuppressWarnings("unchecked")
         ZipCoordinator(MaybeObserver<? super R> observer, int n, Function<? super Object[], ? extends R> zipper) {
@@ -82,7 +82,7 @@ public final class MaybeZipArray<T, R> extends Maybe<R> {
             this.zipper = zipper;
             ZipMaybeObserver<T>[] o = new ZipMaybeObserver[n];
             for (int i = 0; i < n; i++) {
-                o[i] = new ZipMaybeObserver<T>(this, i);
+                o[i] = new ZipMaybeObserver<>(this, i);
             }
             this.observers = o;
             this.values = new Object[n];
@@ -99,22 +99,29 @@ public final class MaybeZipArray<T, R> extends Maybe<R> {
                 for (ZipMaybeObserver<?> d : observers) {
                     d.dispose();
                 }
+
+                values = null;
             }
         }
 
         void innerSuccess(T value, int index) {
-            values[index] = value;
+            Object[] values = this.values;
+            if (values != null) {
+                values[index] = value;
+            }
             if (decrementAndGet() == 0) {
                 R v;
 
                 try {
-                    v = ObjectHelper.requireNonNull(zipper.apply(values), "The zipper returned a null value");
+                    v = Objects.requireNonNull(zipper.apply(values), "The zipper returned a null value");
                 } catch (Throwable ex) {
                     Exceptions.throwIfFatal(ex);
+                    this.values = null;
                     downstream.onError(ex);
                     return;
                 }
 
+                this.values = null;
                 downstream.onSuccess(v);
             }
         }
@@ -133,6 +140,7 @@ public final class MaybeZipArray<T, R> extends Maybe<R> {
         void innerError(Throwable ex, int index) {
             if (getAndSet(0) > 0) {
                 disposeExcept(index);
+                values = null;
                 downstream.onError(ex);
             } else {
                 RxJavaPlugins.onError(ex);
@@ -142,6 +150,7 @@ public final class MaybeZipArray<T, R> extends Maybe<R> {
         void innerComplete(int index) {
             if (getAndSet(0) > 0) {
                 disposeExcept(index);
+                values = null;
                 downstream.onComplete();
             }
         }
@@ -190,7 +199,7 @@ public final class MaybeZipArray<T, R> extends Maybe<R> {
     final class SingletonArrayFunc implements Function<T, R> {
         @Override
         public R apply(T t) throws Throwable {
-            return ObjectHelper.requireNonNull(zipper.apply(new Object[] { t }), "The zipper returned a null value");
+            return Objects.requireNonNull(zipper.apply(new Object[] { t }), "The zipper returned a null value");
         }
     }
 }

@@ -16,6 +16,9 @@ import io.reactivex.rxjava3.annotations.NonNull;
 import io.reactivex.rxjava3.functions.Action;
 import io.reactivex.rxjava3.internal.util.ExceptionHelper;
 
+/**
+ * A Disposable container that manages an {@link Action} instance.
+ */
 final class ActionDisposable extends ReferenceDisposable<Action> {
 
     private static final long serialVersionUID = -8219729196779211169L;
@@ -31,5 +34,10 @@ final class ActionDisposable extends ReferenceDisposable<Action> {
         } catch (Throwable ex) {
             throw ExceptionHelper.wrapOrThrow(ex);
         }
+    }
+
+    @Override
+    public String toString() {
+        return "ActionDisposable(disposed=" + isDisposed() + ", " + get() + ")";
     }
 }

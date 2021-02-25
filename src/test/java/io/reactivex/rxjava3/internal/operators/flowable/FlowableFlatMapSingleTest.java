@@ -22,7 +22,7 @@ import org.junit.Test;
 import org.reactivestreams.Subscriber;
 
 import io.reactivex.rxjava3.core.*;
-import io.reactivex.rxjava3.disposables.*;
+import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.exceptions.*;
 import io.reactivex.rxjava3.functions.Function;
 import io.reactivex.rxjava3.internal.functions.Functions;
@@ -30,6 +30,7 @@ import io.reactivex.rxjava3.internal.subscriptions.BooleanSubscription;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 import io.reactivex.rxjava3.processors.PublishProcessor;
 import io.reactivex.rxjava3.schedulers.Schedulers;
+import io.reactivex.rxjava3.subjects.SingleSubject;
 import io.reactivex.rxjava3.subscribers.TestSubscriber;
 import io.reactivex.rxjava3.testsupport.*;
 
@@ -361,7 +362,7 @@ public class FlowableFlatMapSingleTest extends RxJavaTest {
             .flatMapSingle(Functions.justFunction(new Single<Integer>() {
                 @Override
                 protected void subscribeActual(SingleObserver<? super Integer> observer) {
-                    observer.onSubscribe(Disposables.empty());
+                    observer.onSubscribe(Disposable.empty());
                     observer.onError(new TestException("First"));
                     observer.onError(new TestException("Second"));
                 }
@@ -408,7 +409,7 @@ public class FlowableFlatMapSingleTest extends RxJavaTest {
 
     @Test
     public void disposeInner() {
-        final TestSubscriber<Object> ts = new TestSubscriber<Object>();
+        final TestSubscriber<Object> ts = new TestSubscriber<>();
 
         Flowable.just(1).flatMapSingle(new Function<Integer, SingleSource<Object>>() {
             @Override
@@ -416,7 +417,7 @@ public class FlowableFlatMapSingleTest extends RxJavaTest {
                 return new Single<Object>() {
                     @Override
                     protected void subscribeActual(SingleObserver<? super Object> observer) {
-                        observer.onSubscribe(Disposables.empty());
+                        observer.onSubscribe(Disposable.empty());
 
                         assertFalse(((Disposable)observer).isDisposed());
 
@@ -540,5 +541,40 @@ public class FlowableFlatMapSingleTest extends RxJavaTest {
                 }, true, 2);
             }
         });
+    }
+
+    @Test
+    public void badRequest() {
+        TestHelper.assertBadRequestReported(Flowable.never().flatMapSingle(v -> Single.never()));
+    }
+
+    @Test
+    public void successRace() {
+        for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
+            SingleSubject<Integer> ss1 = SingleSubject.create();
+            SingleSubject<Integer> ss2 = SingleSubject.create();
+
+            TestSubscriber<Integer> ts = Flowable.just(ss1, ss2).flatMapSingle(v -> v)
+            .test();
+
+            TestHelper.race(
+                    () -> ss1.onSuccess(1),
+                    () -> ss2.onSuccess(1)
+            );
+
+            ts.assertResult(1, 1);
+        }
+    }
+
+    @Test
+    public void successShortcut() {
+        SingleSubject<Integer> ss1 = SingleSubject.create();
+
+        TestSubscriber<Integer> ts = Flowable.just(ss1).hide().flatMapSingle(v -> v)
+        .test();
+
+        ss1.onSuccess(1);
+
+        ts.assertResult(1);
     }
 }

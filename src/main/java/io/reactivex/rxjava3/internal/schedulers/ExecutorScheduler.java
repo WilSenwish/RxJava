@@ -33,20 +33,23 @@ public final class ExecutorScheduler extends Scheduler {
 
     final boolean interruptibleWorker;
 
+    final boolean fair;
+
     @NonNull
     final Executor executor;
 
     static final Scheduler HELPER = Schedulers.single();
 
-    public ExecutorScheduler(@NonNull Executor executor, boolean interruptibleWorker) {
+    public ExecutorScheduler(@NonNull Executor executor, boolean interruptibleWorker, boolean fair) {
         this.executor = executor;
         this.interruptibleWorker = interruptibleWorker;
+        this.fair = fair;
     }
 
     @NonNull
     @Override
     public Worker createWorker() {
-        return new ExecutorWorker(executor, interruptibleWorker);
+        return new ExecutorWorker(executor, interruptibleWorker, fair);
     }
 
     @NonNull
@@ -123,6 +126,8 @@ public final class ExecutorScheduler extends Scheduler {
 
         final boolean interruptibleWorker;
 
+        final boolean fair;
+
         final Executor executor;
 
         final MpscLinkedQueue<Runnable> queue;
@@ -133,10 +138,11 @@ public final class ExecutorScheduler extends Scheduler {
 
         final CompositeDisposable tasks = new CompositeDisposable();
 
-        public ExecutorWorker(Executor executor, boolean interruptibleWorker) {
+        public ExecutorWorker(Executor executor, boolean interruptibleWorker, boolean fair) {
             this.executor = executor;
-            this.queue = new MpscLinkedQueue<Runnable>();
+            this.queue = new MpscLinkedQueue<>();
             this.interruptibleWorker = interruptibleWorker;
+            this.fair = fair;
         }
 
         @NonNull
@@ -236,6 +242,34 @@ public final class ExecutorScheduler extends Scheduler {
 
         @Override
         public void run() {
+            if (fair) {
+                runFair();
+            } else {
+                runEager();
+            }
+        }
+
+        void runFair() {
+            final MpscLinkedQueue<Runnable> q = queue;
+            if (disposed) {
+                q.clear();
+                return;
+            }
+
+            Runnable run = q.poll();
+            run.run(); // never null because of offer + increment happens first
+
+            if (disposed) {
+                q.clear();
+                return;
+            }
+
+            if (wip.decrementAndGet() != 0) {
+                executor.execute(this);
+            }
+        }
+
+        void runEager() {
             int missed = 1;
             final MpscLinkedQueue<Runnable> q = queue;
             for (;;) {
@@ -286,6 +320,10 @@ public final class ExecutorScheduler extends Scheduler {
                 }
                 try {
                     actual.run();
+                } catch (Throwable ex) {
+                    // Exceptions.throwIfFatal(ex); nowhere to go
+                    RxJavaPlugins.onError(ex);
+                    throw ex;
                 } finally {
                     lazySet(true);
                 }
@@ -352,7 +390,13 @@ public final class ExecutorScheduler extends Scheduler {
                     thread = Thread.currentThread();
                     if (compareAndSet(READY, RUNNING)) {
                         try {
-                            run.run();
+                            try {
+                                run.run();
+                            } catch (Throwable ex) {
+                                // Exceptions.throwIfFatal(ex); nowhere to go
+                                RxJavaPlugins.onError(ex);
+                                throw ex;
+                            }
                         } finally {
                             thread = null;
                             if (compareAndSet(RUNNING, FINISHED)) {
@@ -429,11 +473,17 @@ public final class ExecutorScheduler extends Scheduler {
             Runnable r = get();
             if (r != null) {
                 try {
-                    r.run();
-                } finally {
-                    lazySet(null);
-                    timed.lazySet(DisposableHelper.DISPOSED);
-                    direct.lazySet(DisposableHelper.DISPOSED);
+                    try {
+                        r.run();
+                    } finally {
+                        lazySet(null);
+                        timed.lazySet(DisposableHelper.DISPOSED);
+                        direct.lazySet(DisposableHelper.DISPOSED);
+                    }
+                } catch (Throwable ex) {
+                    // Exceptions.throwIfFatal(ex); nowhere to go
+                    RxJavaPlugins.onError(ex);
+                    throw ex;
                 }
             }
         }

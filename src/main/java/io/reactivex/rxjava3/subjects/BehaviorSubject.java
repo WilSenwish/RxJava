@@ -13,13 +13,13 @@
 
 package io.reactivex.rxjava3.subjects;
 
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.*;
 
 import io.reactivex.rxjava3.annotations.*;
 import io.reactivex.rxjava3.core.Observer;
 import io.reactivex.rxjava3.disposables.Disposable;
-import io.reactivex.rxjava3.internal.functions.ObjectHelper;
 import io.reactivex.rxjava3.internal.util.*;
 import io.reactivex.rxjava3.internal.util.AppendOnlyLinkedArrayList.NonThrowingPredicate;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
@@ -28,7 +28,7 @@ import io.reactivex.rxjava3.plugins.RxJavaPlugins;
  * Subject that emits the most recent item it has observed and all subsequent observed items to each subscribed
  * {@link Observer}.
  * <p>
- * <img width="640" height="415" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/S.BehaviorSubject.png" alt="">
+ * <img width="640" height="415" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/S.BehaviorSubject.v3.png" alt="">
  * <p>
  * This subject does not have a public constructor by design; a new empty instance of this
  * {@code BehaviorSubject} can be created via the {@link #create()} method and
@@ -151,7 +151,7 @@ public final class BehaviorSubject<T> extends Subject<T> {
 
     final AtomicReference<Object> value;
 
-    final AtomicReference<BehaviorDisposable<T>[]> subscribers;
+    final AtomicReference<BehaviorDisposable<T>[]> observers;
 
     @SuppressWarnings("rawtypes")
     static final BehaviorDisposable[] EMPTY = new BehaviorDisposable[0];
@@ -176,7 +176,7 @@ public final class BehaviorSubject<T> extends Subject<T> {
     @CheckReturnValue
     @NonNull
     public static <T> BehaviorSubject<T> create() {
-        return new BehaviorSubject<T>();
+        return new BehaviorSubject<>(null);
     }
 
     /**
@@ -189,41 +189,33 @@ public final class BehaviorSubject<T> extends Subject<T> {
      *            the item that will be emitted first to any {@link Observer} as long as the
      *            {@link BehaviorSubject} has not yet observed any items from its source {@code Observable}
      * @return the constructed {@link BehaviorSubject}
+     * @throws NullPointerException if {@code defaultValue} is {@code null}
      */
     @CheckReturnValue
     @NonNull
-    public static <T> BehaviorSubject<T> createDefault(T defaultValue) {
-        return new BehaviorSubject<T>(defaultValue);
+    public static <@NonNull T> BehaviorSubject<T> createDefault(T defaultValue) {
+        Objects.requireNonNull(defaultValue, "defaultValue is null");
+        return new BehaviorSubject<>(defaultValue);
     }
 
     /**
      * Constructs an empty BehaviorSubject.
+     * @param defaultValue the initial value, not null (verified)
      * @since 2.0
      */
     @SuppressWarnings("unchecked")
-    BehaviorSubject() {
+    BehaviorSubject(T defaultValue) {
         this.lock = new ReentrantReadWriteLock();
         this.readLock = lock.readLock();
         this.writeLock = lock.writeLock();
-        this.subscribers = new AtomicReference<BehaviorDisposable<T>[]>(EMPTY);
-        this.value = new AtomicReference<Object>();
-        this.terminalEvent = new AtomicReference<Throwable>();
-    }
-
-    /**
-     * Constructs a BehaviorSubject with the given initial value.
-     * @param defaultValue the initial value, not null (verified)
-     * @throws NullPointerException if {@code defaultValue} is null
-     * @since 2.0
-     */
-    BehaviorSubject(T defaultValue) {
-        this();
-        this.value.lazySet(ObjectHelper.requireNonNull(defaultValue, "defaultValue is null"));
+        this.observers = new AtomicReference<>(EMPTY);
+        this.value = new AtomicReference<>(defaultValue);
+        this.terminalEvent = new AtomicReference<>();
     }
 
     @Override
     protected void subscribeActual(Observer<? super T> observer) {
-        BehaviorDisposable<T> bs = new BehaviorDisposable<T>(observer, this);
+        BehaviorDisposable<T> bs = new BehaviorDisposable<>(observer, this);
         observer.onSubscribe(bs);
         if (add(bs)) {
             if (bs.cancelled) {
@@ -257,7 +249,7 @@ public final class BehaviorSubject<T> extends Subject<T> {
         }
         Object o = NotificationLite.next(t);
         setCurrent(o);
-        for (BehaviorDisposable<T> bs : subscribers.get()) {
+        for (BehaviorDisposable<T> bs : observers.get()) {
             bs.emitNext(o, index);
         }
     }
@@ -287,16 +279,19 @@ public final class BehaviorSubject<T> extends Subject<T> {
     }
 
     @Override
+    @CheckReturnValue
     public boolean hasObservers() {
-        return subscribers.get().length != 0;
+        return observers.get().length != 0;
     }
 
+    @CheckReturnValue
     /* test support*/ int subscriberCount() {
-        return subscribers.get().length;
+        return observers.get().length;
     }
 
     @Override
     @Nullable
+    @CheckReturnValue
     public Throwable getThrowable() {
         Object o = value.get();
         if (NotificationLite.isError(o)) {
@@ -311,6 +306,7 @@ public final class BehaviorSubject<T> extends Subject<T> {
      * @return a single value the Subject currently has or null if no such value exists
      */
     @Nullable
+    @CheckReturnValue
     public T getValue() {
         Object o = value.get();
         if (NotificationLite.isComplete(o) || NotificationLite.isError(o)) {
@@ -320,12 +316,14 @@ public final class BehaviorSubject<T> extends Subject<T> {
     }
 
     @Override
+    @CheckReturnValue
     public boolean hasComplete() {
         Object o = value.get();
         return NotificationLite.isComplete(o);
     }
 
     @Override
+    @CheckReturnValue
     public boolean hasThrowable() {
         Object o = value.get();
         return NotificationLite.isError(o);
@@ -336,6 +334,7 @@ public final class BehaviorSubject<T> extends Subject<T> {
      * <p>The method is thread-safe.
      * @return true if the subject has any value
      */
+    @CheckReturnValue
     public boolean hasValue() {
         Object o = value.get();
         return o != null && !NotificationLite.isComplete(o) && !NotificationLite.isError(o);
@@ -343,7 +342,7 @@ public final class BehaviorSubject<T> extends Subject<T> {
 
     boolean add(BehaviorDisposable<T> rs) {
         for (;;) {
-            BehaviorDisposable<T>[] a = subscribers.get();
+            BehaviorDisposable<T>[] a = observers.get();
             if (a == TERMINATED) {
                 return false;
             }
@@ -352,7 +351,7 @@ public final class BehaviorSubject<T> extends Subject<T> {
             BehaviorDisposable<T>[] b = new BehaviorDisposable[len + 1];
             System.arraycopy(a, 0, b, 0, len);
             b[len] = rs;
-            if (subscribers.compareAndSet(a, b)) {
+            if (observers.compareAndSet(a, b)) {
                 return true;
             }
         }
@@ -361,7 +360,7 @@ public final class BehaviorSubject<T> extends Subject<T> {
     @SuppressWarnings("unchecked")
     void remove(BehaviorDisposable<T> rs) {
         for (;;) {
-            BehaviorDisposable<T>[] a = subscribers.get();
+            BehaviorDisposable<T>[] a = observers.get();
             int len = a.length;
             if (len == 0) {
                 return;
@@ -385,7 +384,7 @@ public final class BehaviorSubject<T> extends Subject<T> {
                 System.arraycopy(a, 0, b, 0, j);
                 System.arraycopy(a, j + 1, b, j, len - j - 1);
             }
-            if (subscribers.compareAndSet(a, b)) {
+            if (observers.compareAndSet(a, b)) {
                 return;
             }
         }
@@ -394,13 +393,9 @@ public final class BehaviorSubject<T> extends Subject<T> {
     @SuppressWarnings("unchecked")
     BehaviorDisposable<T>[] terminate(Object terminalValue) {
 
-        BehaviorDisposable<T>[] a = subscribers.getAndSet(TERMINATED);
-        if (a != TERMINATED) {
-            // either this or atomics with lots of allocation
-            setCurrent(terminalValue);
-        }
+        setCurrent(terminalValue);
 
-        return a;
+        return observers.getAndSet(TERMINATED);
     }
 
     void setCurrent(Object o) {
@@ -493,7 +488,7 @@ public final class BehaviorSubject<T> extends Subject<T> {
                     if (emitting) {
                         AppendOnlyLinkedArrayList<Object> q = queue;
                         if (q == null) {
-                            q = new AppendOnlyLinkedArrayList<Object>(4);
+                            q = new AppendOnlyLinkedArrayList<>(4);
                             queue = q;
                         }
                         q.add(value);

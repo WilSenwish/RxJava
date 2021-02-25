@@ -19,7 +19,7 @@ import static org.mockito.Mockito.*;
 
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.*;
 
 import org.junit.*;
 import org.mockito.InOrder;
@@ -32,7 +32,7 @@ import io.reactivex.rxjava3.internal.functions.Functions;
 import io.reactivex.rxjava3.internal.subscriptions.BooleanSubscription;
 import io.reactivex.rxjava3.internal.util.ExceptionHelper;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
-import io.reactivex.rxjava3.processors.PublishProcessor;
+import io.reactivex.rxjava3.processors.*;
 import io.reactivex.rxjava3.schedulers.*;
 import io.reactivex.rxjava3.subscribers.*;
 import io.reactivex.rxjava3.testsupport.*;
@@ -450,7 +450,7 @@ public class FlowableSwitchTest extends RxJavaTest {
         publishCompleted(o2, 50);
         publishCompleted(o3, 55);
 
-        final TestSubscriberEx<String> testSubscriber = new TestSubscriberEx<String>();
+        final TestSubscriberEx<String> testSubscriber = new TestSubscriberEx<>();
         Flowable.switchOnNext(o).subscribe(new DefaultSubscriber<String>() {
 
             private int requested;
@@ -549,7 +549,7 @@ public class FlowableSwitchTest extends RxJavaTest {
 
     @Test
     public void initialRequestsAreAdditive() {
-        TestSubscriber<Long> ts = new TestSubscriber<Long>(0L);
+        TestSubscriber<Long> ts = new TestSubscriber<>(0L);
         Flowable.switchOnNext(
                 Flowable.interval(100, TimeUnit.MILLISECONDS)
                           .map(
@@ -568,7 +568,7 @@ public class FlowableSwitchTest extends RxJavaTest {
 
     @Test
     public void initialRequestsDontOverflow() {
-        TestSubscriber<Long> ts = new TestSubscriber<Long>(0L);
+        TestSubscriber<Long> ts = new TestSubscriber<>(0L);
         Flowable.switchOnNext(
                 Flowable.interval(100, TimeUnit.MILLISECONDS)
                         .map(new Function<Long, Flowable<Long>>() {
@@ -585,7 +585,7 @@ public class FlowableSwitchTest extends RxJavaTest {
 
     @Test
     public void secondaryRequestsDontOverflow() throws InterruptedException {
-        TestSubscriber<Long> ts = new TestSubscriber<Long>(0L);
+        TestSubscriber<Long> ts = new TestSubscriber<>(0L);
         Flowable.switchOnNext(
                 Flowable.interval(100, TimeUnit.MILLISECONDS)
                         .map(new Function<Long, Flowable<Long>>() {
@@ -639,7 +639,7 @@ public class FlowableSwitchTest extends RxJavaTest {
 
     @Test
     public void switchOnNextPrefetch() {
-        final List<Integer> list = new ArrayList<Integer>();
+        final List<Integer> list = new ArrayList<>();
 
         Flowable<Integer> source = Flowable.range(1, 10).hide().doOnNext(new Consumer<Integer>() {
             @Override
@@ -656,7 +656,7 @@ public class FlowableSwitchTest extends RxJavaTest {
 
     @Test
     public void switchOnNextDelayError() {
-        final List<Integer> list = new ArrayList<Integer>();
+        final List<Integer> list = new ArrayList<>();
 
         Flowable<Integer> source = Flowable.range(1, 10).hide().doOnNext(new Consumer<Integer>() {
             @Override
@@ -673,7 +673,7 @@ public class FlowableSwitchTest extends RxJavaTest {
 
     @Test
     public void switchOnNextDelayErrorPrefetch() {
-        final List<Integer> list = new ArrayList<Integer>();
+        final List<Integer> list = new ArrayList<>();
 
         Flowable<Integer> source = Flowable.range(1, 10).hide().doOnNext(new Consumer<Integer>() {
             @Override
@@ -1082,7 +1082,7 @@ public class FlowableSwitchTest extends RxJavaTest {
     @Test
     public void drainCancelRace() {
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
-            final TestSubscriber<Integer> ts = new TestSubscriber<Integer>();
+            final TestSubscriber<Integer> ts = new TestSubscriber<>();
 
             final PublishProcessor<Integer> pp = PublishProcessor.create();
 
@@ -1176,7 +1176,7 @@ public class FlowableSwitchTest extends RxJavaTest {
     public void undeliverableUponCancel() {
         List<Throwable> errors = TestHelper.trackPluginErrors();
         try {
-            final TestSubscriberEx<Integer> ts = new TestSubscriberEx<Integer>();
+            final TestSubscriberEx<Integer> ts = new TestSubscriberEx<>();
 
             Flowable.just(1)
             .map(new Function<Integer, Integer>() {
@@ -1228,5 +1228,153 @@ public class FlowableSwitchTest extends RxJavaTest {
         })
         .test()
         .assertResult(10, 20);
+    }
+
+    @Test
+    public void asyncFusedInner() {
+        Flowable.just(1)
+        .hide()
+        .switchMap(v -> Flowable.fromCallable(() -> 1))
+        .test()
+        .assertResult(1);
+    }
+
+    @Test
+    public void innerIgnoresCancelAndErrors() throws Throwable {
+        TestHelper.withErrorTracking(errors -> {
+            PublishProcessor<Integer> pp = PublishProcessor.create();
+
+            TestSubscriber<Object> ts = pp
+            .switchMap(v -> {
+                if (v == 1) {
+                    return Flowable.unsafeCreate(s -> {
+                        s.onSubscribe(new BooleanSubscription());
+                        pp.onNext(2);
+                        s.onError(new TestException());
+                    });
+                }
+                return Flowable.never();
+            })
+            .test();
+
+            pp.onNext(1);
+
+            ts.assertEmpty();
+
+            TestHelper.assertUndeliverable(errors, 0, TestException.class);
+        });
+    }
+
+    @Test
+    public void doubleOnSubscribe() {
+        TestHelper.checkDoubleOnSubscribeFlowable(f -> f.switchMap(v -> Flowable.never()));
+    }
+
+    @Test
+    public void badRequest() {
+        TestHelper.assertBadRequestReported(Flowable.never().switchMap(v -> Flowable.never()));
+    }
+
+    @Test
+    public void innerFailed() {
+        BehaviorProcessor.createDefault(Flowable.error(new TestException()))
+        .switchMap(v -> v)
+        .test()
+        .assertFailure(TestException.class)
+        ;
+    }
+
+    @Test
+    public void innerCompleted() {
+        BehaviorProcessor.createDefault(Flowable.empty().hide())
+        .switchMap(v -> v)
+        .test()
+        .assertEmpty()
+        ;
+    }
+
+    @Test
+    public void innerCompletedBackpressureBoundary() {
+        PublishProcessor<Integer> pp = PublishProcessor.create();
+
+        TestSubscriber<Integer> ts = BehaviorProcessor.createDefault(pp)
+        .onBackpressureBuffer()
+        .switchMap(v -> v)
+        .test(1L)
+        ;
+
+        ts.assertEmpty();
+
+        pp.onNext(1);
+        pp.onComplete();
+
+        ts.assertValuesOnly(1);
+    }
+
+    @Test
+    public void innerCompletedDelayError() {
+        BehaviorProcessor.createDefault(Flowable.empty().hide())
+        .switchMapDelayError(v -> v)
+        .test()
+        .assertEmpty()
+        ;
+    }
+
+    @Test
+    public void innerCompletedBackpressureBoundaryDelayError() {
+        PublishProcessor<Integer> pp = PublishProcessor.create();
+
+        TestSubscriber<Integer> ts = BehaviorProcessor.createDefault(pp)
+        .onBackpressureBuffer()
+        .switchMapDelayError(v -> v)
+        .test(1L)
+        ;
+
+        ts.assertEmpty();
+
+        pp.onNext(1);
+        pp.onComplete();
+
+        ts.assertValuesOnly(1);
+    }
+
+    @Test
+    public void cancellationShouldTriggerInnerCancellationRace() throws Throwable {
+        AtomicInteger outer = new AtomicInteger();
+        AtomicInteger inner = new AtomicInteger();
+
+        int n = 10_000;
+        for (int i = 0; i < n; i++) {
+            Flowable.<Integer>create(it -> {
+                it.onNext(0);
+            }, BackpressureStrategy.MISSING)
+            .switchMap(v -> createFlowable(inner))
+            .observeOn(Schedulers.computation())
+            .doFinally(() -> {
+                outer.incrementAndGet();
+            })
+            .take(1)
+            .blockingSubscribe(v -> { }, Throwable::printStackTrace);
+        }
+
+        Thread.sleep(100);
+        assertEquals(inner.get(), outer.get());
+        assertEquals(n, inner.get());
+    }
+
+    Flowable<Integer> createFlowable(AtomicInteger inner) {
+        return Flowable.<Integer>unsafeCreate(s -> {
+            SerializedSubscriber<Integer> it = new SerializedSubscriber<>(s);
+            it.onSubscribe(new BooleanSubscription());
+            Schedulers.io().scheduleDirect(() -> {
+                it.onNext(1);
+            }, 0, TimeUnit.MILLISECONDS);
+            Schedulers.io().scheduleDirect(() -> {
+                it.onNext(2);
+            }, 0, TimeUnit.MILLISECONDS);
+        })
+        .doFinally(() -> {
+            inner.incrementAndGet();
+        });
     }
 }

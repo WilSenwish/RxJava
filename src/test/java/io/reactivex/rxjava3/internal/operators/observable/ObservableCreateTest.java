@@ -17,26 +17,25 @@ import static org.junit.Assert.*;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Test;
 
 import io.reactivex.rxjava3.core.*;
-import io.reactivex.rxjava3.disposables.*;
+import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.exceptions.TestException;
 import io.reactivex.rxjava3.functions.Cancellable;
+import io.reactivex.rxjava3.observers.TestObserver;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 import io.reactivex.rxjava3.testsupport.*;
 
 public class ObservableCreateTest extends RxJavaTest {
 
-    @Test(expected = NullPointerException.class)
-    public void nullArgument() {
-        Observable.create(null);
-    }
-
     @Test
+    @SuppressUndeliverable
     public void basic() {
-        final Disposable d = Disposables.empty();
+        final Disposable d = Disposable.empty();
 
         Observable.<Integer>create(new ObservableOnSubscribe<Integer>() {
             @Override
@@ -60,9 +59,10 @@ public class ObservableCreateTest extends RxJavaTest {
     }
 
     @Test
+    @SuppressUndeliverable
     public void basicWithCancellable() {
-        final Disposable d1 = Disposables.empty();
-        final Disposable d2 = Disposables.empty();
+        final Disposable d1 = Disposable.empty();
+        final Disposable d2 = Disposable.empty();
 
         Observable.<Integer>create(new ObservableOnSubscribe<Integer>() {
             @Override
@@ -93,8 +93,9 @@ public class ObservableCreateTest extends RxJavaTest {
     }
 
     @Test
+    @SuppressUndeliverable
     public void basicWithError() {
-        final Disposable d = Disposables.empty();
+        final Disposable d = Disposable.empty();
 
         Observable.<Integer>create(new ObservableOnSubscribe<Integer>() {
             @Override
@@ -117,8 +118,9 @@ public class ObservableCreateTest extends RxJavaTest {
     }
 
     @Test
+    @SuppressUndeliverable
     public void basicSerialized() {
-        final Disposable d = Disposables.empty();
+        final Disposable d = Disposable.empty();
 
         Observable.<Integer>create(new ObservableOnSubscribe<Integer>() {
             @Override
@@ -144,8 +146,9 @@ public class ObservableCreateTest extends RxJavaTest {
     }
 
     @Test
+    @SuppressUndeliverable
     public void basicWithErrorSerialized() {
-        final Disposable d = Disposables.empty();
+        final Disposable d = Disposable.empty();
 
         Observable.<Integer>create(new ObservableOnSubscribe<Integer>() {
             @Override
@@ -174,7 +177,7 @@ public class ObservableCreateTest extends RxJavaTest {
         Observable.wrap(new ObservableSource<Integer>() {
             @Override
             public void subscribe(Observer<? super Integer> observer) {
-                observer.onSubscribe(Disposables.empty());
+                observer.onSubscribe(Disposable.empty());
                 observer.onNext(1);
                 observer.onNext(2);
                 observer.onNext(3);
@@ -192,7 +195,7 @@ public class ObservableCreateTest extends RxJavaTest {
         Observable.unsafeCreate(new ObservableSource<Integer>() {
             @Override
             public void subscribe(Observer<? super Integer> observer) {
-                observer.onSubscribe(Disposables.empty());
+                observer.onSubscribe(Disposable.empty());
                 observer.onNext(1);
                 observer.onNext(2);
                 observer.onNext(3);
@@ -211,6 +214,7 @@ public class ObservableCreateTest extends RxJavaTest {
     }
 
     @Test
+    @SuppressUndeliverable
     public void createNullValue() {
         final Throwable[] error = { null };
 
@@ -234,6 +238,7 @@ public class ObservableCreateTest extends RxJavaTest {
     }
 
     @Test
+    @SuppressUndeliverable
     public void createNullValueSerialized() {
         final Throwable[] error = { null };
 
@@ -322,7 +327,7 @@ public class ObservableCreateTest extends RxJavaTest {
         Observable.create(new ObservableOnSubscribe<Object>() {
             @Override
             public void subscribe(ObservableEmitter<Object> e) throws Exception {
-                Disposable d = Disposables.empty();
+                Disposable d = Disposable.empty();
                 e.setDisposable(d);
                 try {
                     e.onError(new IOException());
@@ -358,7 +363,7 @@ public class ObservableCreateTest extends RxJavaTest {
         Observable.create(new ObservableOnSubscribe<Object>() {
             @Override
             public void subscribe(ObservableEmitter<Object> e) throws Exception {
-                Disposable d = Disposables.empty();
+                Disposable d = Disposable.empty();
                 e.setDisposable(d);
                 try {
                     e.onComplete();
@@ -658,5 +663,97 @@ public class ObservableCreateTest extends RxJavaTest {
                 assertTrue(emitter.serialize().toString().contains(ObservableCreate.CreateEmitter.class.getSimpleName()));
             }
         }).test().assertEmpty();
+    }
+
+    @Test
+    public void emptySerialized() {
+        Observable.create(emitter -> emitter.serialize().onComplete())
+        .test()
+        .assertResult();
+    }
+
+    @Test
+    public void serializedDisposedBeforeOnNext() {
+        TestObserver<Object> to = new TestObserver<>();
+
+        Observable.create(emitter -> {
+            to.dispose();
+            emitter.serialize().onNext(1);
+        })
+        .subscribe(to);
+
+        to.assertEmpty();
+    }
+
+    @Test
+    public void serializedOnNextAfterComplete() {
+        TestObserver<Object> to = new TestObserver<>();
+
+        Observable.create(emitter -> {
+            emitter = emitter.serialize();
+
+            emitter.onComplete();
+            emitter.onNext(1);
+        })
+        .subscribe(to);
+
+        to.assertResult();
+    }
+
+    @Test
+    public void serializedEnqueueAndDrainRace() throws Throwable {
+        for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
+            TestObserver<Integer> to = new TestObserver<>();
+            AtomicReference<ObservableEmitter<Integer>> ref = new AtomicReference<>();
+
+            CountDownLatch cdl = new CountDownLatch(1);
+
+            Observable.<Integer>create(emitter -> {
+                emitter = emitter.serialize();
+                ref.set(emitter);
+                emitter.onNext(1);
+            })
+            .doOnNext(v -> {
+                if (v == 1) {
+                    TestHelper.raceOther(() -> {
+                        ref.get().onNext(2);
+                    }, cdl);
+                    ref.get().onNext(3);
+                }
+            })
+            .subscribe(to);
+
+            cdl.await();
+
+            to.assertValueCount(3);
+        }
+    }
+
+    @Test
+    public void serializedDrainDoneButNotEmpty() throws Throwable {
+        for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
+            TestObserver<Integer> to = new TestObserver<>();
+            AtomicReference<ObservableEmitter<Integer>> ref = new AtomicReference<>();
+
+            CountDownLatch cdl = new CountDownLatch(1);
+
+            Observable.<Integer>create(emitter -> {
+                emitter = emitter.serialize();
+                ref.set(emitter);
+                emitter.onNext(1);
+            })
+            .doOnNext(v -> {
+                if (v == 1) {
+                    TestHelper.raceOther(() -> {
+                        ref.get().onNext(2);
+                        ref.get().onComplete();
+                    }, cdl);
+                    ref.get().onNext(3);
+                }
+            })
+            .subscribe(to);
+
+            cdl.await();
+        }
     }
 }

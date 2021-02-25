@@ -63,7 +63,7 @@ public class BlockingObservableNextTest extends RxJavaTest {
     }
 
     static <T> Iterable<T> next(ObservableSource<T> source) {
-        return new BlockingObservableNext<T>(source);
+        return new BlockingObservableNext<>(source);
     }
 
     @Test
@@ -227,8 +227,8 @@ public class BlockingObservableNextTest extends RxJavaTest {
 
     /**
      * Confirm that no buffering or blocking of the Observable onNext calls occurs and it just grabs the next emitted value.
-     * <p/>
-     * This results in output such as => a: 1 b: 2 c: 89
+     * <p>
+     * This results in output such as {@code => a: 1 b: 2 c: 89}
      *
      * @throws Throwable some method call is declared throws
      */
@@ -247,7 +247,7 @@ public class BlockingObservableNextTest extends RxJavaTest {
 
                     @Override
                     public void subscribe(final Observer<? super Integer> o) {
-                        o.onSubscribe(Disposables.empty());
+                        o.onSubscribe(Disposable.empty());
                         task.replace(Schedulers.single().scheduleDirect(new Runnable() {
 
                             @Override
@@ -356,7 +356,7 @@ public class BlockingObservableNextTest extends RxJavaTest {
 
     @Test
     public void nextObserverError() {
-        NextObserver<Integer> no = new NextObserver<Integer>();
+        NextObserver<Integer> no = new NextObserver<>();
 
         List<Throwable> errors = TestHelper.trackPluginErrors();
         try {
@@ -370,7 +370,7 @@ public class BlockingObservableNextTest extends RxJavaTest {
 
     @Test
     public void nextObserverOnNext() throws Exception {
-        NextObserver<Integer> no = new NextObserver<Integer>();
+        NextObserver<Integer> no = new NextObserver<>();
 
         no.setWaiting();
         no.onNext(Notification.createOnNext(1));
@@ -383,7 +383,7 @@ public class BlockingObservableNextTest extends RxJavaTest {
 
     @Test
     public void nextObserverOnCompleteOnNext() throws Exception {
-        NextObserver<Integer> no = new NextObserver<Integer>();
+        NextObserver<Integer> no = new NextObserver<>();
 
         no.setWaiting();
         no.onNext(Notification.<Integer>createOnComplete());

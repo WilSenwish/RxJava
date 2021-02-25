@@ -13,6 +13,7 @@
 
 package io.reactivex.rxjava3.internal.fuseable;
 
+import io.reactivex.rxjava3.annotations.NonNull;
 import io.reactivex.rxjava3.core.Maybe;
 
 /**
@@ -20,8 +21,10 @@ import io.reactivex.rxjava3.core.Maybe;
  * the operator goes from Maybe to some other reactive type and then the sequence calls
  * for toMaybe again:
  * <pre>
- * Single&lt;Integer> single = Maybe.just(1).isEmpty();
- * Maybe&lt;Integer> maybe = single.toMaybe();
+ * {@code
+ * Single<Integer> single = Maybe.just(1).isEmpty();
+ * Maybe<Integer> maybe = single.toMaybe();
+ * }
  * </pre>
  *
  * The {@code Single.toMaybe()} will check for this interface and call the {@link #fuseToMaybe()}
@@ -32,12 +35,13 @@ import io.reactivex.rxjava3.core.Maybe;
  *
  * @param <T> the value type
  */
-public interface FuseToMaybe<T> {
+public interface FuseToMaybe<@NonNull T> {
 
     /**
      * Returns a (direct) Maybe for the operator.
      * <p>The implementation should handle the necessary RxJavaPlugins wrapping.
      * @return the Maybe instance
      */
+    @NonNull
     Maybe<T> fuseToMaybe();
 }

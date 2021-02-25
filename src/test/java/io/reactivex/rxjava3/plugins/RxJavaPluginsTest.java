@@ -594,12 +594,67 @@ public class RxJavaPluginsTest extends RxJavaTest {
 
     @SuppressWarnings("rawtypes")
     @Test
+    public void parallelFlowableStart() {
+        try {
+            RxJavaPlugins.setOnParallelSubscribe(new BiFunction<ParallelFlowable, Subscriber[], Subscriber[]>() {
+                @Override
+                public Subscriber[] apply(ParallelFlowable f, final Subscriber[] t) {
+                    return new Subscriber[] { new Subscriber() {
+
+                            @Override
+                            public void onSubscribe(Subscription s) {
+                                t[0].onSubscribe(s);
+                            }
+
+                            @SuppressWarnings("unchecked")
+                            @Override
+                            public void onNext(Object value) {
+                                t[0].onNext((Integer)value - 9);
+                            }
+
+                            @Override
+                            public void onError(Throwable e) {
+                                t[0].onError(e);
+                            }
+
+                            @Override
+                            public void onComplete() {
+                                t[0].onComplete();
+                            }
+
+                        }
+                    };
+                }
+            });
+
+            Flowable.range(10, 3)
+            .parallel(1)
+            .sequential()
+            .test()
+            .assertValues(1, 2, 3)
+            .assertNoErrors()
+            .assertComplete();
+        } finally {
+            RxJavaPlugins.reset();
+        }
+        // make sure the reset worked
+        Flowable.range(10, 3)
+        .parallel(1)
+        .sequential()
+        .test()
+        .assertValues(10, 11, 12)
+        .assertNoErrors()
+        .assertComplete();
+    }
+
+    @SuppressWarnings("rawtypes")
+    @Test
     public void singleCreate() {
         try {
             RxJavaPlugins.setOnSingleAssembly(new Function<Single, Single>() {
                 @Override
                 public Single apply(Single t) {
-                    return new SingleJust<Integer>(10);
+                    return new SingleJust<>(10);
                 }
             });
 
@@ -806,7 +861,7 @@ public class RxJavaPluginsTest extends RxJavaTest {
     @Test
     public void onError() {
         try {
-            final List<Throwable> list = new ArrayList<Throwable>();
+            final List<Throwable> list = new ArrayList<>();
 
             RxJavaPlugins.setErrorHandler(new Consumer<Throwable>() {
                 @Override
@@ -827,7 +882,7 @@ public class RxJavaPluginsTest extends RxJavaTest {
     @Test
     public void onErrorNoHandler() {
         try {
-            final List<Throwable> list = new ArrayList<Throwable>();
+            final List<Throwable> list = new ArrayList<>();
 
             RxJavaPlugins.setErrorHandler(null);
 
@@ -858,7 +913,7 @@ public class RxJavaPluginsTest extends RxJavaTest {
     @Test
     public void onErrorCrashes() {
         try {
-            final List<Throwable> list = new ArrayList<Throwable>();
+            final List<Throwable> list = new ArrayList<>();
 
             RxJavaPlugins.setErrorHandler(new Consumer<Throwable>() {
                 @Override
@@ -893,7 +948,7 @@ public class RxJavaPluginsTest extends RxJavaTest {
     @Test
     public void onErrorWithNull() {
         try {
-            final List<Throwable> list = new ArrayList<Throwable>();
+            final List<Throwable> list = new ArrayList<>();
 
             RxJavaPlugins.setErrorHandler(new Consumer<Throwable>() {
                 @Override
@@ -1176,6 +1231,7 @@ public class RxJavaPluginsTest extends RxJavaTest {
             }
 
             AllSubscriber all = new AllSubscriber();
+            Subscriber[] allArray = { all };
 
             assertNull(RxJavaPlugins.onSubscribe(Observable.never(), null));
 
@@ -1196,6 +1252,10 @@ public class RxJavaPluginsTest extends RxJavaTest {
             assertNull(RxJavaPlugins.onSubscribe(Maybe.never(), null));
 
             assertSame(all, RxJavaPlugins.onSubscribe(Maybe.never(), all));
+
+            assertNull(RxJavaPlugins.onSubscribe(Flowable.never().parallel(), null));
+
+            assertSame(allArray, RxJavaPlugins.onSubscribe(Flowable.never().parallel(), allArray));
 
             final Scheduler s = ImmediateThinScheduler.INSTANCE;
             Supplier<Scheduler> c = new Supplier<Scheduler>() {
@@ -1261,7 +1321,7 @@ public class RxJavaPluginsTest extends RxJavaTest {
                         @SuppressWarnings("unchecked")
                         @Override
                         protected void subscribeActual(Observer observer) {
-                            observer.onSubscribe(Disposables.empty());
+                            observer.onSubscribe(Disposable.empty());
                             observer.onNext(10);
                             observer.onComplete();
                         }
@@ -1523,7 +1583,7 @@ public class RxJavaPluginsTest extends RxJavaTest {
     @Test
     public void onErrorNull() {
         try {
-            final AtomicReference<Throwable> t = new AtomicReference<Throwable>();
+            final AtomicReference<Throwable> t = new AtomicReference<>();
 
             RxJavaPlugins.setErrorHandler(new Consumer<Throwable>() {
                 @Override
@@ -1547,7 +1607,7 @@ public class RxJavaPluginsTest extends RxJavaTest {
         assertNotNull(scheduler);
         Worker w = scheduler.createWorker();
         try {
-            final AtomicReference<Thread> value = new AtomicReference<Thread>();
+            final AtomicReference<Thread> value = new AtomicReference<>();
             final CountDownLatch cdl = new CountDownLatch(1);
 
             w.schedule(new Runnable() {
@@ -1703,7 +1763,7 @@ public class RxJavaPluginsTest extends RxJavaTest {
             RxJavaPlugins.setOnParallelAssembly(new Function<ParallelFlowable, ParallelFlowable>() {
                 @Override
                 public ParallelFlowable apply(ParallelFlowable pf) throws Exception {
-                    return new ParallelFromPublisher<Integer>(Flowable.just(2), 2, 2);
+                    return new ParallelFromPublisher<>(Flowable.just(2), 2, 2);
                 }
             });
 

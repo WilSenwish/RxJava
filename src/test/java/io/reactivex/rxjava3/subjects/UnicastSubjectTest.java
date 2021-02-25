@@ -17,16 +17,19 @@ import static org.junit.Assert.*;
 import static org.mockito.Mockito.mock;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.Test;
 
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.disposables.*;
-import io.reactivex.rxjava3.exceptions.TestException;
+import io.reactivex.rxjava3.exceptions.*;
+import io.reactivex.rxjava3.internal.functions.Functions;
 import io.reactivex.rxjava3.internal.fuseable.QueueFuseable;
 import io.reactivex.rxjava3.observers.TestObserver;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
+import io.reactivex.rxjava3.schedulers.Schedulers;
 import io.reactivex.rxjava3.testsupport.*;
 
 public class UnicastSubjectTest extends SubjectTest<Integer> {
@@ -40,7 +43,7 @@ public class UnicastSubjectTest extends SubjectTest<Integer> {
     public void fusionLive() {
         UnicastSubject<Integer> ap = UnicastSubject.create();
 
-        TestObserverEx<Integer> to = new TestObserverEx<Integer>(QueueFuseable.ANY);
+        TestObserverEx<Integer> to = new TestObserverEx<>(QueueFuseable.ANY);
 
         ap.subscribe(to);
 
@@ -65,7 +68,7 @@ public class UnicastSubjectTest extends SubjectTest<Integer> {
         ap.onNext(1);
         ap.onComplete();
 
-        TestObserverEx<Integer> to = new TestObserverEx<Integer>(QueueFuseable.ANY);
+        TestObserverEx<Integer> to = new TestObserverEx<>(QueueFuseable.ANY);
 
         ap.subscribe(to);
 
@@ -121,7 +124,7 @@ public class UnicastSubjectTest extends SubjectTest<Integer> {
         UnicastSubject<Integer> ap = UnicastSubject.create(false);
         ap.onNext(1);
         ap.onError(new RuntimeException());
-        TestObserverEx<Integer> to = new TestObserverEx<Integer>(QueueFuseable.ANY);
+        TestObserverEx<Integer> to = new TestObserverEx<>(QueueFuseable.ANY);
         ap.subscribe(to);
 
         to
@@ -136,7 +139,7 @@ public class UnicastSubjectTest extends SubjectTest<Integer> {
         ap.onNext(2);
         ap.onNext(3);
         ap.onComplete();
-        TestObserverEx<Integer> to = new TestObserverEx<Integer>(QueueFuseable.ANY);
+        TestObserverEx<Integer> to = new TestObserverEx<>(QueueFuseable.ANY);
         ap.subscribe(to);
 
         to
@@ -225,14 +228,14 @@ public class UnicastSubjectTest extends SubjectTest<Integer> {
     public void completeCancelRace() {
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
             final int[] calls = { 0 };
-            final UnicastSubject<Object> up = UnicastSubject.create(100, new Runnable() {
+            final UnicastSubject<Object> us = UnicastSubject.create(100, new Runnable() {
                 @Override
                 public void run() {
                     calls[0]++;
                 }
             });
 
-            final TestObserver<Object> to = up.test();
+            final TestObserver<Object> to = us.test();
 
             Runnable r1 = new Runnable() {
                 @Override
@@ -244,7 +247,7 @@ public class UnicastSubjectTest extends SubjectTest<Integer> {
             Runnable r2 = new Runnable() {
                 @Override
                 public void run() {
-                    up.onComplete();
+                    us.onComplete();
                 }
             };
 
@@ -259,7 +262,7 @@ public class UnicastSubjectTest extends SubjectTest<Integer> {
         UnicastSubject<Object> p = UnicastSubject.create();
         p.onComplete();
 
-        Disposable bs = Disposables.empty();
+        Disposable bs = Disposable.empty();
         p.onSubscribe(bs);
 
         p.onNext(1);
@@ -300,7 +303,7 @@ public class UnicastSubjectTest extends SubjectTest<Integer> {
     public void rejectSyncFusion() {
         UnicastSubject<Object> p = UnicastSubject.create();
 
-        TestObserverEx<Object> to = new TestObserverEx<Object>(QueueFuseable.SYNC);
+        TestObserverEx<Object> to = new TestObserverEx<>(QueueFuseable.SYNC);
 
         p.subscribe(to);
 
@@ -334,7 +337,7 @@ public class UnicastSubjectTest extends SubjectTest<Integer> {
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
             final UnicastSubject<Object> p = UnicastSubject.create();
 
-            final TestObserverEx<Object> to = new TestObserverEx<Object>(QueueFuseable.ANY);
+            final TestObserverEx<Object> to = new TestObserverEx<>(QueueFuseable.ANY);
 
             p.subscribe(to);
 
@@ -360,10 +363,12 @@ public class UnicastSubjectTest extends SubjectTest<Integer> {
     public void dispose() {
         final int[] calls = { 0 };
 
-        UnicastSubject<Integer> us = new UnicastSubject<Integer>(128, new Runnable() {
+        UnicastSubject<Integer> us = new UnicastSubject<>(128, new Runnable() {
             @Override
-            public void run() { calls[0]++; }
-        });
+            public void run() {
+                calls[0]++;
+            }
+        }, true);
 
         TestHelper.checkDisposed(us);
 
@@ -378,7 +383,7 @@ public class UnicastSubjectTest extends SubjectTest<Integer> {
             RxJavaPlugins.reset();
         }
 
-        Disposable d = Disposables.empty();
+        Disposable d = Disposable.empty();
 
         us.onSubscribe(d);
 
@@ -390,8 +395,8 @@ public class UnicastSubjectTest extends SubjectTest<Integer> {
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
             final UnicastSubject<Integer> us = UnicastSubject.create();
 
-            final TestObserverEx<Integer> to1 = new TestObserverEx<Integer>();
-            final TestObserverEx<Integer> to2 = new TestObserverEx<Integer>();
+            final TestObserverEx<Integer> to1 = new TestObserverEx<>();
+            final TestObserverEx<Integer> to2 = new TestObserverEx<>();
 
             Runnable r1 = new Runnable() {
                 @Override
@@ -456,5 +461,54 @@ public class UnicastSubjectTest extends SubjectTest<Integer> {
         us.drainFused(to);
 
         to.assertEmpty();
+    }
+
+    @Test
+    public void fusedNoConcurrentCleanDueToCancel() {
+        for (int j = 0; j < TestHelper.RACE_LONG_LOOPS; j++) {
+            List<Throwable> errors = TestHelper.trackPluginErrors();
+            try {
+                final UnicastSubject<Integer> us = UnicastSubject.create();
+
+                TestObserver<Integer> to = us
+                .observeOn(Schedulers.io())
+                .map(Functions.<Integer>identity())
+                .observeOn(Schedulers.single())
+                .firstOrError()
+                .test();
+
+                for (int i = 0; us.hasObservers(); i++) {
+                    us.onNext(i);
+                }
+
+                to
+                .awaitDone(5, TimeUnit.SECONDS)
+                ;
+
+                if (!errors.isEmpty()) {
+                    throw new CompositeException(errors);
+                }
+
+                to.assertResult(0);
+            } finally {
+                RxJavaPlugins.reset();
+            }
+        }
+    }
+
+    @Test
+    public void withCapacityHint() {
+        UnicastSubject<Integer> us = UnicastSubject.create(16);
+
+        TestObserver<Integer> to = us.test();
+
+        for (int i = 0; i < 256; i++) {
+            us.onNext(i);
+        }
+        us.onComplete();
+
+        to.assertValueCount(256)
+        .assertComplete()
+        .assertNoErrors();
     }
 }

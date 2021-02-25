@@ -28,7 +28,7 @@ import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 public final class SingleScheduler extends Scheduler {
 
     final ThreadFactory threadFactory;
-    final AtomicReference<ScheduledExecutorService> executor = new AtomicReference<ScheduledExecutorService>();
+    final AtomicReference<ScheduledExecutorService> executor = new AtomicReference<>();
 
     /** The name of the system property for setting the thread priority for this Scheduler. */
     private static final String KEY_SINGLE_PRIORITY = "rx3.single-priority";
@@ -90,12 +90,9 @@ public final class SingleScheduler extends Scheduler {
 
     @Override
     public void shutdown() {
-        ScheduledExecutorService current = executor.get();
+        ScheduledExecutorService current =  executor.getAndSet(SHUTDOWN);
         if (current != SHUTDOWN) {
-            current = executor.getAndSet(SHUTDOWN);
-            if (current != SHUTDOWN) {
-                current.shutdownNow();
-            }
+            current.shutdownNow();
         }
     }
 

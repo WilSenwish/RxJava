@@ -24,7 +24,8 @@ import org.reactivestreams.Publisher;
 import io.reactivex.rxjava3.core.*;
 import io.reactivex.rxjava3.exceptions.*;
 import io.reactivex.rxjava3.functions.*;
-import io.reactivex.rxjava3.internal.operators.flowable.FlowableConcatMap.WeakScalarSubscription;
+import io.reactivex.rxjava3.internal.operators.flowable.FlowableConcatMap.SimpleScalarSubscription;
+import io.reactivex.rxjava3.processors.*;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import io.reactivex.rxjava3.subscribers.TestSubscriber;
 import io.reactivex.rxjava3.testsupport.TestHelper;
@@ -32,9 +33,9 @@ import io.reactivex.rxjava3.testsupport.TestHelper;
 public class FlowableConcatMapTest extends RxJavaTest {
 
     @Test
-    public void weakSubscriptionRequest() {
-        TestSubscriber<Integer> ts = new TestSubscriber<Integer>(0);
-        WeakScalarSubscription<Integer> ws = new WeakScalarSubscription<Integer>(1, ts);
+    public void simpleSubscriptionRequest() {
+        TestSubscriber<Integer> ts = new TestSubscriber<>(0);
+        SimpleScalarSubscription<Integer> ws = new SimpleScalarSubscription<>(1, ts);
         ts.onSubscribe(ws);
 
         ws.request(0);
@@ -76,6 +77,56 @@ public class FlowableConcatMapTest extends RxJavaTest {
         .test()
         .awaitDone(5, TimeUnit.SECONDS)
         .assertResult("RxSingleScheduler");
+    }
+
+    @Test
+    public void innerScalarRequestRace() {
+        Flowable<Integer> just = Flowable.just(1);
+        int n = 1000;
+        for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
+            PublishProcessor<Flowable<Integer>> source = PublishProcessor.create();
+
+            TestSubscriber<Integer> ts = source
+                    .concatMap(v -> v, n + 1)
+                    .test(1L);
+
+            TestHelper.race(() -> {
+                for (int j = 0; j < n; j++) {
+                    source.onNext(just);
+                }
+            }, () -> {
+                for (int j = 0; j < n; j++) {
+                    ts.request(1);
+                }
+            });
+
+            ts.assertValueCount(n);
+        }
+    }
+
+    @Test
+    public void innerScalarRequestRaceDelayError() {
+        Flowable<Integer> just = Flowable.just(1);
+        int n = 1000;
+        for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
+            PublishProcessor<Flowable<Integer>> source = PublishProcessor.create();
+
+            TestSubscriber<Integer> ts = source
+                    .concatMapDelayError(v -> v, true, n + 1)
+                    .test(1L);
+
+            TestHelper.race(() -> {
+                for (int j = 0; j < n; j++) {
+                    source.onNext(just);
+                }
+            }, () -> {
+                for (int j = 0; j < n; j++) {
+                    ts.request(1);
+                }
+            });
+
+            ts.assertValueCount(n);
+        }
     }
 
     @Test
@@ -251,5 +302,24 @@ public class FlowableConcatMapTest extends RxJavaTest {
                 }, true, 2);
             }
         });
+    }
+
+    @Test
+    public void asyncFusedSource() {
+        UnicastProcessor<Integer> up = UnicastProcessor.create();
+        up.onNext(1);
+        up.onComplete();
+
+        up.concatMap(v -> Flowable.just(1).hide())
+        .test()
+        .assertResult(1);
+    }
+
+    @Test
+    public void scalarCallableSource() {
+        Flowable.fromCallable(() -> 1)
+        .concatMap(v -> Flowable.just(1))
+        .test()
+        .assertResult(1);
     }
 }

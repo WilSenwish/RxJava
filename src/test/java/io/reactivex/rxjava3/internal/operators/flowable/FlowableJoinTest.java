@@ -55,7 +55,7 @@ public class FlowableJoinTest extends RxJavaTest {
 
     @Before
     public void before() {
-        MockitoAnnotations.initMocks(this);
+        MockitoAnnotations.openMocks(this);
     }
 
     @Test
@@ -486,5 +486,36 @@ public class FlowableJoinTest extends RxJavaTest {
         pp1.onNext(1);
 
         ts.assertFailure(MissingBackpressureException.class);
+    }
+
+    @Test
+    public void badRequest() {
+        PublishProcessor<Integer> pp1 = PublishProcessor.create();
+        PublishProcessor<Integer> pp2 = PublishProcessor.create();
+
+        TestHelper.assertBadRequestReported(pp1.join(pp2, Functions.justFunction(Flowable.never()), Functions.justFunction(Flowable.never()), (a, b) -> a + b));
+    }
+
+    @Test
+    public void bothTerminateWithWorkRemaining() {
+        PublishProcessor<Integer> pp1 = PublishProcessor.create();
+        PublishProcessor<Integer> pp2 = PublishProcessor.create();
+
+        TestSubscriber<Integer> ts = pp1.join(
+                pp2,
+                v -> Flowable.never(),
+                v -> Flowable.never(),
+                (a, b) -> a + b)
+        .doOnNext(v -> {
+            pp1.onComplete();
+            pp2.onNext(2);
+            pp2.onComplete();
+        })
+        .test();
+
+        pp1.onNext(0);
+        pp2.onNext(1);
+
+        ts.assertComplete();
     }
 }

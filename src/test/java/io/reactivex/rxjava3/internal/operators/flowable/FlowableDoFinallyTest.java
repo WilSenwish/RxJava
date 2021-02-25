@@ -208,7 +208,7 @@ public class FlowableDoFinallyTest extends RxJavaTest implements Action {
 
         Flowable.range(1, 5)
         .doFinally(this)
-        .filter(Functions.alwaysTrue())
+        .compose(TestHelper.conditional())
         .subscribe(ts);
 
         ts.assertFusionMode(QueueFuseable.SYNC)
@@ -237,7 +237,7 @@ public class FlowableDoFinallyTest extends RxJavaTest implements Action {
 
         Flowable.range(1, 5).hide()
         .doFinally(this)
-        .filter(Functions.alwaysTrue())
+        .compose(TestHelper.conditional())
         .subscribe(ts);
 
         ts.assertFusionMode(QueueFuseable.NONE)
@@ -252,7 +252,7 @@ public class FlowableDoFinallyTest extends RxJavaTest implements Action {
 
         Flowable.range(1, 5)
         .doFinally(this)
-        .filter(Functions.alwaysTrue())
+        .compose(TestHelper.conditional())
         .subscribe(ts);
 
         ts.assertFusionMode(QueueFuseable.NONE)
@@ -270,7 +270,7 @@ public class FlowableDoFinallyTest extends RxJavaTest implements Action {
 
         up
         .doFinally(this)
-        .filter(Functions.alwaysTrue())
+        .compose(TestHelper.conditional())
         .subscribe(ts);
 
         ts.assertFusionMode(QueueFuseable.ASYNC)
@@ -288,18 +288,13 @@ public class FlowableDoFinallyTest extends RxJavaTest implements Action {
 
         up
         .doFinally(this)
-        .filter(Functions.alwaysTrue())
+        .compose(TestHelper.conditional())
         .subscribe(ts);
 
         ts.assertFusionMode(QueueFuseable.NONE)
         .assertResult(1, 2, 3, 4, 5);
 
         assertEquals(1, calls);
-    }
-
-    @Test(expected = NullPointerException.class)
-    public void nullAction() {
-        Flowable.just(1).doFinally(null);
     }
 
     @Test
@@ -440,7 +435,7 @@ public class FlowableDoFinallyTest extends RxJavaTest implements Action {
 
     @Test
     public void eventOrdering() {
-        final List<String> list = new ArrayList<String>();
+        final List<String> list = new ArrayList<>();
 
         Flowable.error(new TestException())
         .doOnCancel(new Action() {
@@ -480,7 +475,7 @@ public class FlowableDoFinallyTest extends RxJavaTest implements Action {
 
     @Test
     public void eventOrdering2() {
-        final List<String> list = new ArrayList<String>();
+        final List<String> list = new ArrayList<>();
 
         Flowable.just(1)
         .doOnCancel(new Action() {
@@ -516,5 +511,32 @@ public class FlowableDoFinallyTest extends RxJavaTest implements Action {
                 });
 
         assertEquals(Arrays.asList("onNext", "onComplete", "finally"), list);
+    }
+
+    @Test
+    public void fusionRejected() {
+        TestSubscriberEx<Object> ts = new TestSubscriberEx<>();
+        ts.setInitialFusionMode(QueueFuseable.ANY);
+
+        TestHelper.rejectFlowableFusion()
+        .doFinally(() -> { })
+        .subscribeWith(ts);
+
+        ts.assertFuseable()
+        .assertFusionMode(QueueFuseable.NONE);
+    }
+
+    @Test
+    public void fusionRejectedConditional() {
+        TestSubscriberEx<Object> ts = new TestSubscriberEx<>();
+        ts.setInitialFusionMode(QueueFuseable.ANY);
+
+        TestHelper.rejectFlowableFusion()
+        .doFinally(() -> { })
+        .compose(TestHelper.conditional())
+        .subscribeWith(ts);
+
+        ts.assertFuseable()
+        .assertFusionMode(QueueFuseable.NONE);
     }
 }

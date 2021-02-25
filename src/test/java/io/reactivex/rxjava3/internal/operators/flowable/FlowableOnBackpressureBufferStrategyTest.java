@@ -58,7 +58,7 @@ public class FlowableOnBackpressureBufferStrategyTest extends RxJavaTest {
     }
 
     private TestSubscriber<Long> createTestSubscriber() {
-        return new TestSubscriber<Long>(new DefaultSubscriber<Long>() {
+        return new TestSubscriber<>(new DefaultSubscriber<Long>() {
 
             @Override
             protected void onStart() {
@@ -204,6 +204,25 @@ public class FlowableOnBackpressureBufferStrategyTest extends RxJavaTest {
         .onBackpressureBuffer(16, Functions.EMPTY_ACTION, BackpressureOverflowStrategy.ERROR)
         .take(1)
         .test()
+        .assertResult(1);
+    }
+
+    @Test
+    public void overflowNullAction() {
+        Flowable.range(1, 5)
+        .onBackpressureBuffer(1, null, BackpressureOverflowStrategy.DROP_OLDEST)
+        .test(0L)
+        .assertEmpty();
+    }
+
+    @Test
+    public void cancelOnDrain() {
+        Flowable.range(1, 5)
+        .onBackpressureBuffer(10, null, BackpressureOverflowStrategy.DROP_OLDEST)
+        .takeUntil(v -> true)
+        .test(0L)
+        .assertEmpty()
+        .requestMore(10)
         .assertResult(1);
     }
 }

@@ -30,7 +30,7 @@ import io.reactivex.rxjava3.testsupport.TestHelper;
 
 public class MaybeDoAfterSuccessTest extends RxJavaTest {
 
-    final List<Integer> values = new ArrayList<Integer>();
+    final List<Integer> values = new ArrayList<>();
 
     final Consumer<Integer> afterSuccess = new Consumer<Integer>() {
         @Override
@@ -75,11 +75,6 @@ public class MaybeDoAfterSuccessTest extends RxJavaTest {
         .assertResult();
 
         assertTrue(values.isEmpty());
-    }
-
-    @Test(expected = NullPointerException.class)
-    public void consumerNull() {
-        Maybe.just(1).doAfterSuccess(null);
     }
 
     @Test

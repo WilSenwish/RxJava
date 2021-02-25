@@ -47,7 +47,7 @@ public class ObservableFromSupplierTest extends RxJavaTest {
 
         Observable<Object> fromSupplierObservable = Observable.fromSupplier(func);
 
-        verifyZeroInteractions(func);
+        verifyNoInteractions(func);
 
         fromSupplierObservable.subscribe();
 
@@ -121,7 +121,7 @@ public class ObservableFromSupplierTest extends RxJavaTest {
 
         Observer<Object> observer = TestHelper.mockObserver();
 
-        TestObserver<String> outer = new TestObserver<String>(observer);
+        TestObserver<String> outer = new TestObserver<>(observer);
 
         fromSupplierObservable
                 .subscribeOn(Schedulers.computation())
@@ -262,7 +262,7 @@ public class ObservableFromSupplierTest extends RxJavaTest {
 
     @Test
     public void disposedOnCall() {
-        final TestObserver<Integer> to = new TestObserver<Integer>();
+        final TestObserver<Integer> to = new TestObserver<>();
 
         Observable.fromSupplier(new Supplier<Integer>() {
             @Override
@@ -280,7 +280,7 @@ public class ObservableFromSupplierTest extends RxJavaTest {
     public void disposedOnCallThrows() {
         List<Throwable> errors = TestHelper.trackPluginErrors();
         try {
-            final TestObserver<Integer> to = new TestObserver<Integer>();
+            final TestObserver<Integer> to = new TestObserver<>();
 
             Observable.fromSupplier(new Supplier<Integer>() {
                 @Override

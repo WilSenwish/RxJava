@@ -160,7 +160,7 @@ public final class ReplaySubject<T> extends Subject<T> {
     @CheckReturnValue
     @NonNull
     public static <T> ReplaySubject<T> create() {
-        return new ReplaySubject<T>(new UnboundedReplayBuffer<T>(16));
+        return new ReplaySubject<>(new UnboundedReplayBuffer<>(16));
     }
 
     /**
@@ -177,11 +177,13 @@ public final class ReplaySubject<T> extends Subject<T> {
      * @param capacityHint
      *          the initial buffer capacity
      * @return the created subject
+     * @throws IllegalArgumentException if {@code capacityHint} is non-positive
      */
     @CheckReturnValue
     @NonNull
     public static <T> ReplaySubject<T> create(int capacityHint) {
-        return new ReplaySubject<T>(new UnboundedReplayBuffer<T>(capacityHint));
+        ObjectHelper.verifyPositive(capacityHint, "capacityHint");
+        return new ReplaySubject<>(new UnboundedReplayBuffer<>(capacityHint));
     }
 
     /**
@@ -203,11 +205,13 @@ public final class ReplaySubject<T> extends Subject<T> {
      * @param maxSize
      *          the maximum number of buffered items
      * @return the created subject
+     * @throws IllegalArgumentException if {@code maxSize} is non-positive
      */
     @CheckReturnValue
     @NonNull
     public static <T> ReplaySubject<T> createWithSize(int maxSize) {
-        return new ReplaySubject<T>(new SizeBoundReplayBuffer<T>(maxSize));
+        ObjectHelper.verifyPositive(maxSize, "maxSize");
+        return new ReplaySubject<>(new SizeBoundReplayBuffer<>(maxSize));
     }
 
     /**
@@ -224,7 +228,7 @@ public final class ReplaySubject<T> extends Subject<T> {
      * @return the created subject
      */
     /* test */ static <T> ReplaySubject<T> createUnbounded() {
-        return new ReplaySubject<T>(new SizeBoundReplayBuffer<T>(Integer.MAX_VALUE));
+        return new ReplaySubject<>(new SizeBoundReplayBuffer<>(Integer.MAX_VALUE));
     }
 
     /**
@@ -258,11 +262,16 @@ public final class ReplaySubject<T> extends Subject<T> {
      * @param scheduler
      *          the {@link Scheduler} that provides the current time
      * @return the created subject
+     * @throws NullPointerException if {@code unit} or {@code scheduler} is {@code null}
+     * @throws IllegalArgumentException if {@code maxAge} is non-positive
      */
     @CheckReturnValue
     @NonNull
-    public static <T> ReplaySubject<T> createWithTime(long maxAge, TimeUnit unit, Scheduler scheduler) {
-        return new ReplaySubject<T>(new SizeAndTimeBoundReplayBuffer<T>(Integer.MAX_VALUE, maxAge, unit, scheduler));
+    public static <T> ReplaySubject<T> createWithTime(long maxAge, @NonNull TimeUnit unit, @NonNull Scheduler scheduler) {
+        ObjectHelper.verifyPositive(maxAge, "maxAge");
+        Objects.requireNonNull(unit, "unit is null");
+        Objects.requireNonNull(scheduler, "scheduler is null");
+        return new ReplaySubject<>(new SizeAndTimeBoundReplayBuffer<>(Integer.MAX_VALUE, maxAge, unit, scheduler));
     }
 
     /**
@@ -298,11 +307,17 @@ public final class ReplaySubject<T> extends Subject<T> {
      * @param scheduler
      *          the {@link Scheduler} that provides the current time
      * @return the created subject
+     * @throws NullPointerException if {@code unit} or {@code scheduler} is {@code null}
+     * @throws IllegalArgumentException if {@code maxAge} or {@code maxSize} is non-positive
      */
     @CheckReturnValue
     @NonNull
-    public static <T> ReplaySubject<T> createWithTimeAndSize(long maxAge, TimeUnit unit, Scheduler scheduler, int maxSize) {
-        return new ReplaySubject<T>(new SizeAndTimeBoundReplayBuffer<T>(maxSize, maxAge, unit, scheduler));
+    public static <T> ReplaySubject<T> createWithTimeAndSize(long maxAge, @NonNull TimeUnit unit, @NonNull Scheduler scheduler, int maxSize) {
+        ObjectHelper.verifyPositive(maxSize, "maxSize");
+        ObjectHelper.verifyPositive(maxAge, "maxAge");
+        Objects.requireNonNull(unit, "unit is null");
+        Objects.requireNonNull(scheduler, "scheduler is null");
+        return new ReplaySubject<>(new SizeAndTimeBoundReplayBuffer<>(maxSize, maxAge, unit, scheduler));
     }
 
     /**
@@ -312,23 +327,21 @@ public final class ReplaySubject<T> extends Subject<T> {
     @SuppressWarnings("unchecked")
     ReplaySubject(ReplayBuffer<T> buffer) {
         this.buffer = buffer;
-        this.observers = new AtomicReference<ReplayDisposable<T>[]>(EMPTY);
+        this.observers = new AtomicReference<>(EMPTY);
     }
 
     @Override
     protected void subscribeActual(Observer<? super T> observer) {
-        ReplayDisposable<T> rs = new ReplayDisposable<T>(observer, this);
+        ReplayDisposable<T> rs = new ReplayDisposable<>(observer, this);
         observer.onSubscribe(rs);
 
-        if (!rs.cancelled) {
-            if (add(rs)) {
-                if (rs.cancelled) {
-                    remove(rs);
-                    return;
-                }
+        if (add(rs)) {
+            if (rs.cancelled) {
+                remove(rs);
+                return;
             }
-            buffer.replay(rs);
         }
+        buffer.replay(rs);
     }
 
     @Override
@@ -392,16 +405,19 @@ public final class ReplaySubject<T> extends Subject<T> {
     }
 
     @Override
+    @CheckReturnValue
     public boolean hasObservers() {
         return observers.get().length != 0;
     }
 
+    @CheckReturnValue
     /* test */ int observerCount() {
         return observers.get().length;
     }
 
     @Override
     @Nullable
+    @CheckReturnValue
     public Throwable getThrowable() {
         Object o = buffer.get();
         if (NotificationLite.isError(o)) {
@@ -416,6 +432,7 @@ public final class ReplaySubject<T> extends Subject<T> {
      * @return a single value the Subject currently has or null if no such value exists
      */
     @Nullable
+    @CheckReturnValue
     public T getValue() {
         return buffer.getValue();
     }
@@ -446,6 +463,7 @@ public final class ReplaySubject<T> extends Subject<T> {
      * <p>The method is thread-safe.
      * @return the array containing the snapshot of all values of the Subject
      */
+    @CheckReturnValue
     public Object[] getValues() {
         @SuppressWarnings("unchecked")
         T[] a = (T[])EMPTY_ARRAY;
@@ -465,17 +483,20 @@ public final class ReplaySubject<T> extends Subject<T> {
      * @param array the target array to copy values into if it fits
      * @return the given array if the values fit into it or a new array containing all values
      */
+    @CheckReturnValue
     public T[] getValues(T[] array) {
         return buffer.getValues(array);
     }
 
     @Override
+    @CheckReturnValue
     public boolean hasComplete() {
         Object o = buffer.get();
         return NotificationLite.isComplete(o);
     }
 
     @Override
+    @CheckReturnValue
     public boolean hasThrowable() {
         Object o = buffer.get();
         return NotificationLite.isError(o);
@@ -486,10 +507,12 @@ public final class ReplaySubject<T> extends Subject<T> {
      * <p>The method is thread-safe.
      * @return true if the subject has any value
      */
+    @CheckReturnValue
     public boolean hasValue() {
         return buffer.size() != 0; // NOPMD
     }
 
+    @CheckReturnValue
     /* test*/ int size() {
         return buffer.size();
     }
@@ -546,10 +569,8 @@ public final class ReplaySubject<T> extends Subject<T> {
 
     @SuppressWarnings("unchecked")
     ReplayDisposable<T>[] terminate(Object terminalValue) {
-        if (buffer.compareAndSet(null, terminalValue)) {
-            return observers.getAndSet(TERMINATED);
-        }
-        return TERMINATED;
+        buffer.compareAndSet(null, terminalValue);
+        return observers.getAndSet(TERMINATED);
     }
 
     /**
@@ -636,7 +657,7 @@ public final class ReplaySubject<T> extends Subject<T> {
         volatile int size;
 
         UnboundedReplayBuffer(int capacityHint) {
-            this.buffer = new ArrayList<Object>(ObjectHelper.verifyPositive(capacityHint, "capacityHint"));
+            this.buffer = new ArrayList<>(capacityHint);
         }
 
         @Override
@@ -838,8 +859,8 @@ public final class ReplaySubject<T> extends Subject<T> {
         volatile boolean done;
 
         SizeBoundReplayBuffer(int maxSize) {
-            this.maxSize = ObjectHelper.verifyPositive(maxSize, "maxSize");
-            Node<Object> h = new Node<Object>(null);
+            this.maxSize = maxSize;
+            Node<Object> h = new Node<>(null);
             this.tail = h;
             this.head = h;
         }
@@ -854,7 +875,7 @@ public final class ReplaySubject<T> extends Subject<T> {
 
         @Override
         public void add(T value) {
-            Node<Object> n = new Node<Object>(value);
+            Node<Object> n = new Node<>(value);
             Node<Object> t = tail;
 
             tail = n;
@@ -866,7 +887,7 @@ public final class ReplaySubject<T> extends Subject<T> {
 
         @Override
         public void addFinal(Object notificationLite) {
-            Node<Object> n = new Node<Object>(notificationLite);
+            Node<Object> n = new Node<>(notificationLite);
             Node<Object> t = tail;
 
             tail = n;
@@ -885,7 +906,7 @@ public final class ReplaySubject<T> extends Subject<T> {
         public void trimHead() {
             Node<Object> h = head;
             if (h.value != null) {
-                Node<Object> n = new Node<Object>(null);
+                Node<Object> n = new Node<>(null);
                 n.lazySet(h.get());
                 head = n;
             }
@@ -1051,11 +1072,11 @@ public final class ReplaySubject<T> extends Subject<T> {
         volatile boolean done;
 
         SizeAndTimeBoundReplayBuffer(int maxSize, long maxAge, TimeUnit unit, Scheduler scheduler) {
-            this.maxSize = ObjectHelper.verifyPositive(maxSize, "maxSize");
-            this.maxAge = ObjectHelper.verifyPositive(maxAge, "maxAge");
-            this.unit = ObjectHelper.requireNonNull(unit, "unit is null");
-            this.scheduler = ObjectHelper.requireNonNull(scheduler, "scheduler is null");
-            TimedNode<Object> h = new TimedNode<Object>(null, 0L);
+            this.maxSize = maxSize;
+            this.maxAge = maxAge;
+            this.unit = unit;
+            this.scheduler = scheduler;
+            TimedNode<Object> h = new TimedNode<>(null, 0L);
             this.tail = h;
             this.head = h;
         }
@@ -1076,10 +1097,6 @@ public final class ReplaySubject<T> extends Subject<T> {
                     break;
                 }
                 TimedNode<Object> next = h.get();
-                if (next == null) {
-                    head = h;
-                    break;
-                }
 
                 if (next.time > limit) {
                     head = h;
@@ -1101,7 +1118,7 @@ public final class ReplaySubject<T> extends Subject<T> {
                 TimedNode<Object> next = h.get();
                 if (next.get() == null) {
                     if (h.value != null) {
-                        TimedNode<Object> lasth = new TimedNode<Object>(null, 0L);
+                        TimedNode<Object> lasth = new TimedNode<>(null, 0L);
                         lasth.lazySet(h.get());
                         head = lasth;
                     } else {
@@ -1112,7 +1129,7 @@ public final class ReplaySubject<T> extends Subject<T> {
 
                 if (next.time > limit) {
                     if (h.value != null) {
-                        TimedNode<Object> lasth = new TimedNode<Object>(null, 0L);
+                        TimedNode<Object> lasth = new TimedNode<>(null, 0L);
                         lasth.lazySet(h.get());
                         head = lasth;
                     } else {
@@ -1127,7 +1144,7 @@ public final class ReplaySubject<T> extends Subject<T> {
 
         @Override
         public void add(T value) {
-            TimedNode<Object> n = new TimedNode<Object>(value, scheduler.now(unit));
+            TimedNode<Object> n = new TimedNode<>(value, scheduler.now(unit));
             TimedNode<Object> t = tail;
 
             tail = n;
@@ -1139,7 +1156,7 @@ public final class ReplaySubject<T> extends Subject<T> {
 
         @Override
         public void addFinal(Object notificationLite) {
-            TimedNode<Object> n = new TimedNode<Object>(notificationLite, Long.MAX_VALUE);
+            TimedNode<Object> n = new TimedNode<>(notificationLite, Long.MAX_VALUE);
             TimedNode<Object> t = tail;
 
             tail = n;
@@ -1158,7 +1175,7 @@ public final class ReplaySubject<T> extends Subject<T> {
         public void trimHead() {
             TimedNode<Object> h = head;
             if (h.value != null) {
-                TimedNode<Object> n = new TimedNode<Object>(null, 0);
+                TimedNode<Object> n = new TimedNode<>(null, 0);
                 n.lazySet(h.get());
                 head = n;
             }
@@ -1259,11 +1276,6 @@ public final class ReplaySubject<T> extends Subject<T> {
 
             for (;;) {
 
-                if (rs.cancelled) {
-                    rs.index = null;
-                    return;
-                }
-
                 for (;;) {
                     if (rs.cancelled) {
                         rs.index = null;
@@ -1295,10 +1307,6 @@ public final class ReplaySubject<T> extends Subject<T> {
                     a.onNext((T)o);
 
                     index = n;
-                }
-
-                if (index.get() != null) {
-                    continue;
                 }
 
                 rs.index = index;

@@ -28,7 +28,7 @@ import io.reactivex.rxjava3.functions.Function;
 import io.reactivex.rxjava3.internal.subscriptions.BooleanSubscription;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 import io.reactivex.rxjava3.processors.PublishProcessor;
-import io.reactivex.rxjava3.subjects.MaybeSubject;
+import io.reactivex.rxjava3.subjects.*;
 import io.reactivex.rxjava3.subscribers.TestSubscriber;
 import io.reactivex.rxjava3.testsupport.TestHelper;
 
@@ -230,7 +230,7 @@ public class FlowableMergeWithMaybeTest extends RxJavaTest {
             final PublishProcessor<Integer> pp = PublishProcessor.create();
             final MaybeSubject<Integer> cs = MaybeSubject.create();
 
-            final TestSubscriber<Integer> ts = pp.mergeWith(cs).subscribeWith(new TestSubscriber<Integer>(0));
+            final TestSubscriber<Integer> ts = pp.mergeWith(cs).subscribeWith(new TestSubscriber<>(0));
 
             Runnable r1 = new Runnable() {
                 @Override
@@ -259,7 +259,7 @@ public class FlowableMergeWithMaybeTest extends RxJavaTest {
     public void onErrorMainOverflow() {
         List<Throwable> errors = TestHelper.trackPluginErrors();
         try {
-            final AtomicReference<Subscriber<?>> subscriber = new AtomicReference<Subscriber<?>>();
+            final AtomicReference<Subscriber<?>> subscriber = new AtomicReference<>();
             TestSubscriber<Integer> ts = new Flowable<Integer>() {
                 @Override
                 protected void subscribeActual(Subscriber<? super Integer> s) {
@@ -357,7 +357,7 @@ public class FlowableMergeWithMaybeTest extends RxJavaTest {
         final MaybeSubject<Integer> cs = MaybeSubject.create();
 
         TestSubscriber<Integer> ts = pp.mergeWith(cs)
-                .limit(2)
+                .take(2)
                 .subscribeWith(new TestSubscriber<Integer>(2) {
             @Override
             public void onNext(Integer t) {
@@ -447,5 +447,23 @@ public class FlowableMergeWithMaybeTest extends RxJavaTest {
                 return upstream.mergeWith(Maybe.just(1).hide());
             }
         });
+    }
+
+    @Test
+    public void drainMoreWorkBeforeCancel() {
+        MaybeSubject<Integer> ms = MaybeSubject.create();
+
+        TestSubscriber<Integer> ts = new TestSubscriber<>();
+
+        Flowable.range(1, 5).mergeWith(ms)
+        .doOnNext(v -> {
+            if (v == 1) {
+                ms.onSuccess(6);
+                ts.cancel();
+            }
+        })
+        .subscribe(ts);
+
+        ts.assertValuesOnly(1);
     }
 }

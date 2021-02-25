@@ -20,15 +20,15 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.*;
-import org.junit.rules.ExpectedException;
+import org.junit.Test;
+import org.junit.function.ThrowingRunnable;
 import org.mockito.InOrder;
 import org.reactivestreams.Subscriber;
 
 import io.reactivex.rxjava3.core.*;
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.Observer;
-import io.reactivex.rxjava3.disposables.*;
+import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.exceptions.TestException;
 import io.reactivex.rxjava3.functions.Predicate;
 import io.reactivex.rxjava3.internal.functions.Functions;
@@ -40,13 +40,14 @@ import io.reactivex.rxjava3.testsupport.TestHelper;
 
 public class TestObserverTest extends RxJavaTest {
 
-    @Rule
-    public ExpectedException thrown = ExpectedException.none();
+    static void assertThrowsWithMessage(String message, Class<? extends Throwable> clazz, ThrowingRunnable run) {
+        assertEquals(message, assertThrows(clazz, run).getMessage());
+    }
 
     @Test
     public void assertTestObserver() {
         Flowable<Integer> oi = Flowable.fromIterable(Arrays.asList(1, 2));
-        TestSubscriber<Integer> subscriber = new TestSubscriber<Integer>();
+        TestSubscriber<Integer> subscriber = new TestSubscriber<>();
         oi.subscribe(subscriber);
 
         subscriber.assertValues(1, 2);
@@ -56,50 +57,44 @@ public class TestObserverTest extends RxJavaTest {
 
     @Test
     public void assertNotMatchCount() {
-        Flowable<Integer> oi = Flowable.fromIterable(Arrays.asList(1, 2));
-        TestSubscriber<Integer> subscriber = new TestSubscriber<Integer>();
-        oi.subscribe(subscriber);
+        assertThrows(AssertionError.class, () -> {
+            Flowable<Integer> oi = Flowable.fromIterable(Arrays.asList(1, 2));
+            TestSubscriber<Integer> subscriber = new TestSubscriber<>();
+            oi.subscribe(subscriber);
 
-        thrown.expect(AssertionError.class);
-        // FIXME different message format
-//        thrown.expectMessage("Number of items does not match. Provided: 1  Actual: 2");
-
-        subscriber.assertValue(1);
-        subscriber.assertValueCount(2);
-        subscriber.assertComplete().assertNoErrors();
+            subscriber.assertValue(1);
+            subscriber.assertValueCount(2);
+            subscriber.assertComplete().assertNoErrors();
+        });
     }
 
     @Test
     public void assertNotMatchValue() {
-        Flowable<Integer> oi = Flowable.fromIterable(Arrays.asList(1, 2));
-        TestSubscriber<Integer> subscriber = new TestSubscriber<Integer>();
-        oi.subscribe(subscriber);
+        assertThrows(AssertionError.class, () -> {
+            Flowable<Integer> oi = Flowable.fromIterable(Arrays.asList(1, 2));
+            TestSubscriber<Integer> subscriber = new TestSubscriber<>();
+            oi.subscribe(subscriber);
 
-        thrown.expect(AssertionError.class);
-        // FIXME different message format
-//        thrown.expectMessage("Value at index: 1 expected to be [3] (Integer) but was: [2] (Integer)");
-
-        subscriber.assertValues(1, 3);
-        subscriber.assertValueCount(2);
-        subscriber.assertComplete().assertNoErrors();
+            subscriber.assertValues(1, 3);
+            subscriber.assertValueCount(2);
+            subscriber.assertComplete().assertNoErrors();
+        });
     }
 
     @Test
     public void assertTerminalEventNotReceived() {
-        PublishProcessor<Integer> p = PublishProcessor.create();
-        TestSubscriber<Integer> subscriber = new TestSubscriber<Integer>();
-        p.subscribe(subscriber);
+        assertThrows(AssertionError.class, () -> {
+            PublishProcessor<Integer> p = PublishProcessor.create();
+            TestSubscriber<Integer> subscriber = new TestSubscriber<>();
+            p.subscribe(subscriber);
 
-        p.onNext(1);
-        p.onNext(2);
+            p.onNext(1);
+            p.onNext(2);
 
-        thrown.expect(AssertionError.class);
-        // FIXME different message format
-//        thrown.expectMessage("No terminal events received.");
-
-        subscriber.assertValues(1, 2);
-        subscriber.assertValueCount(2);
-        subscriber.assertComplete().assertNoErrors();
+            subscriber.assertValues(1, 2);
+            subscriber.assertValueCount(2);
+            subscriber.assertComplete().assertNoErrors();
+        });
     }
 
     @Test
@@ -108,7 +103,7 @@ public class TestObserverTest extends RxJavaTest {
 
         Subscriber<Integer> mockSubscriber = TestHelper.mockSubscriber();
 
-        oi.subscribe(new TestSubscriber<Integer>(mockSubscriber));
+        oi.subscribe(new TestSubscriber<>(mockSubscriber));
 
         InOrder inOrder = inOrder(mockSubscriber);
         inOrder.verify(mockSubscriber, times(1)).onNext(1);
@@ -121,7 +116,7 @@ public class TestObserverTest extends RxJavaTest {
     public void wrappingMockWhenUnsubscribeInvolved() {
         Flowable<Integer> oi = Flowable.fromIterable(Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 9)).take(2);
         Subscriber<Integer> mockSubscriber = TestHelper.mockSubscriber();
-        oi.subscribe(new TestSubscriber<Integer>(mockSubscriber));
+        oi.subscribe(new TestSubscriber<>(mockSubscriber));
 
         InOrder inOrder = inOrder(mockSubscriber);
         inOrder.verify(mockSubscriber, times(1)).onNext(1);
@@ -132,12 +127,12 @@ public class TestObserverTest extends RxJavaTest {
 
     @Test
     public void errorSwallowed() {
-        Flowable.error(new RuntimeException()).subscribe(new TestSubscriber<Object>());
+        Flowable.error(new RuntimeException()).subscribe(new TestSubscriber<>());
     }
 
     @Test
     public void nullExpected() {
-        TestSubscriber<Integer> ts = new TestSubscriber<Integer>();
+        TestSubscriber<Integer> ts = new TestSubscriber<>();
         ts.onNext(1);
 
         try {
@@ -151,7 +146,7 @@ public class TestObserverTest extends RxJavaTest {
 
     @Test
     public void nullActual() {
-        TestSubscriber<Integer> ts = new TestSubscriber<Integer>();
+        TestSubscriber<Integer> ts = new TestSubscriber<>();
         ts.onNext(null);
 
         try {
@@ -171,7 +166,7 @@ public class TestObserverTest extends RxJavaTest {
 
         assertFalse(to.hasSubscription());
 
-        to.onSubscribe(Disposables.empty());
+        to.onSubscribe(Disposable.empty());
 
         assertTrue(to.hasSubscription());
 
@@ -243,7 +238,7 @@ public class TestObserverTest extends RxJavaTest {
             // expected
         }
 
-        to.onSubscribe(Disposables.empty());
+        to.onSubscribe(Disposable.empty());
 
         to.assertSubscribed();
 
@@ -315,7 +310,7 @@ public class TestObserverTest extends RxJavaTest {
     public void assertFailure() {
         TestObserver<Integer> to = TestObserver.create();
 
-        to.onSubscribe(Disposables.empty());
+        to.onSubscribe(Disposable.empty());
 
         to.onError(new TestException("Forced failure"));
 
@@ -330,18 +325,18 @@ public class TestObserverTest extends RxJavaTest {
     public void assertFuseable() {
         TestObserver<Integer> to = TestObserver.create();
 
-        to.onSubscribe(Disposables.empty());
+        to.onSubscribe(Disposable.empty());
 
         to = TestObserver.create();
 
-        to.onSubscribe(new ScalarDisposable<Integer>(to, 1));
+        to.onSubscribe(new ScalarDisposable<>(to, 1));
     }
 
     @Test
     public void assertResult() {
         TestObserver<Integer> to = TestObserver.create();
 
-        to.onSubscribe(Disposables.empty());
+        to.onSubscribe(Disposable.empty());
 
         to.onComplete();
 
@@ -378,7 +373,7 @@ public class TestObserverTest extends RxJavaTest {
     public void await() throws Exception {
         TestObserver<Integer> to = TestObserver.create();
 
-        to.onSubscribe(Disposables.empty());
+        to.onSubscribe(Disposable.empty());
 
         assertFalse(to.await(100, TimeUnit.MILLISECONDS));
 
@@ -406,7 +401,7 @@ public class TestObserverTest extends RxJavaTest {
 
         final TestObserver<Integer> to1 = TestObserver.create();
 
-        to1.onSubscribe(Disposables.empty());
+        to1.onSubscribe(Disposable.empty());
 
         Schedulers.single().scheduleDirect(new Runnable() {
             @Override
@@ -422,7 +417,7 @@ public class TestObserverTest extends RxJavaTest {
     public void onNext() {
         TestObserver<Integer> to = TestObserver.create();
 
-        to.onSubscribe(Disposables.empty());
+        to.onSubscribe(Disposable.empty());
 
         assertEquals(0, to.values().size());
 
@@ -445,7 +440,7 @@ public class TestObserverTest extends RxJavaTest {
     public void multipleTerminals() {
         TestObserver<Integer> to = TestObserver.create();
 
-        to.onSubscribe(Disposables.empty());
+        to.onSubscribe(Disposable.empty());
 
         to.assertNotComplete();
 
@@ -479,7 +474,7 @@ public class TestObserverTest extends RxJavaTest {
     public void assertValue() {
         TestObserver<Integer> to = TestObserver.create();
 
-        to.onSubscribe(Disposables.empty());
+        to.onSubscribe(Disposable.empty());
 
         try {
             to.assertValue(1);
@@ -519,7 +514,7 @@ public class TestObserverTest extends RxJavaTest {
 
         to = TestObserver.create();
 
-        to.onSubscribe(Disposables.empty());
+        to.onSubscribe(Disposable.empty());
 
         to.onNext(null);
 
@@ -530,7 +525,7 @@ public class TestObserverTest extends RxJavaTest {
     public void awaitTerminalEventInterrupt() {
         final TestObserver<Integer> to = TestObserver.create();
 
-        to.onSubscribe(Disposables.empty());
+        to.onSubscribe(Disposable.empty());
 
         Thread.currentThread().interrupt();
 
@@ -559,7 +554,7 @@ public class TestObserverTest extends RxJavaTest {
     public void assertTerminated2() {
         TestObserver<Integer> to = TestObserver.create();
 
-        to.onSubscribe(Disposables.empty());
+        to.onSubscribe(Disposable.empty());
 
         to.onError(new TestException());
         to.onError(new IOException());
@@ -573,7 +568,7 @@ public class TestObserverTest extends RxJavaTest {
 
         to = TestObserver.create();
 
-        to.onSubscribe(Disposables.empty());
+        to.onSubscribe(Disposable.empty());
 
         to.onError(new TestException());
         to.onComplete();
@@ -589,9 +584,9 @@ public class TestObserverTest extends RxJavaTest {
 
         to = TestObserver.create();
 
-        to.onSubscribe(Disposables.empty());
+        to.onSubscribe(Disposable.empty());
 
-        Disposable d1 = Disposables.empty();
+        Disposable d1 = Disposable.empty();
 
         to.onSubscribe(d1);
 
@@ -602,7 +597,7 @@ public class TestObserverTest extends RxJavaTest {
         to = TestObserver.create();
         to.dispose();
 
-        d1 = Disposables.empty();
+        d1 = Disposable.empty();
 
         to.onSubscribe(d1);
 
@@ -614,7 +609,7 @@ public class TestObserverTest extends RxJavaTest {
     public void assertValueSequence() {
         TestObserver<Integer> to = TestObserver.create();
 
-        to.onSubscribe(Disposables.empty());
+        to.onSubscribe(Disposable.empty());
 
         to.onNext(1);
         to.onNext(2);
@@ -645,7 +640,7 @@ public class TestObserverTest extends RxJavaTest {
 
     @Test
     public void assertEmpty() {
-        TestObserver<Integer> to = new TestObserver<Integer>();
+        TestObserver<Integer> to = new TestObserver<>();
 
         try {
             to.assertEmpty();
@@ -654,7 +649,7 @@ public class TestObserverTest extends RxJavaTest {
             // expected
         }
 
-        to.onSubscribe(Disposables.empty());
+        to.onSubscribe(Disposable.empty());
 
         to.assertEmpty();
 
@@ -670,7 +665,7 @@ public class TestObserverTest extends RxJavaTest {
 
     @Test
     public void awaitDoneTimed() {
-        TestObserver<Integer> to = new TestObserver<Integer>();
+        TestObserver<Integer> to = new TestObserver<>();
 
         Thread.currentThread().interrupt();
 
@@ -683,7 +678,7 @@ public class TestObserverTest extends RxJavaTest {
 
     @Test
     public void assertErrorMultiple() {
-        TestObserver<Integer> to = new TestObserver<Integer>();
+        TestObserver<Integer> to = new TestObserver<>();
 
         TestException e = new TestException();
         to.onError(e);
@@ -711,7 +706,7 @@ public class TestObserverTest extends RxJavaTest {
 
     @Test
     public void errorInPredicate() {
-        TestObserver<Object> to = new TestObserver<Object>();
+        TestObserver<Object> to = new TestObserver<>();
         to.onError(new RuntimeException());
         try {
             to.assertError(new Predicate<Throwable>() {
@@ -729,9 +724,9 @@ public class TestObserverTest extends RxJavaTest {
 
     @Test
     public void assertComplete() {
-        TestObserver<Integer> to = new TestObserver<Integer>();
+        TestObserver<Integer> to = new TestObserver<>();
 
-        to.onSubscribe(Disposables.empty());
+        to.onSubscribe(Disposable.empty());
 
         try {
             to.assertComplete();
@@ -756,7 +751,7 @@ public class TestObserverTest extends RxJavaTest {
 
     @Test
     public void completeWithoutOnSubscribe() {
-        TestObserver<Integer> to = new TestObserver<Integer>();
+        TestObserver<Integer> to = new TestObserver<>();
 
         to.onComplete();
 
@@ -765,7 +760,7 @@ public class TestObserverTest extends RxJavaTest {
 
     @Test
     public void completeDelegateThrows() {
-        TestObserver<Integer> to = new TestObserver<Integer>(new Observer<Integer>() {
+        TestObserver<Integer> to = new TestObserver<>(new Observer<Integer>() {
 
             @Override
             public void onSubscribe(Disposable d) {
@@ -789,7 +784,7 @@ public class TestObserverTest extends RxJavaTest {
 
         });
 
-        to.onSubscribe(Disposables.empty());
+        to.onSubscribe(Disposable.empty());
 
         try {
             to.onComplete();
@@ -801,7 +796,7 @@ public class TestObserverTest extends RxJavaTest {
 
     @Test
     public void errorDelegateThrows() {
-        TestObserver<Integer> to = new TestObserver<Integer>(new Observer<Integer>() {
+        TestObserver<Integer> to = new TestObserver<>(new Observer<Integer>() {
 
             @Override
             public void onSubscribe(Disposable d) {
@@ -825,7 +820,7 @@ public class TestObserverTest extends RxJavaTest {
 
         });
 
-        to.onSubscribe(Disposables.empty());
+        to.onSubscribe(Disposable.empty());
 
         try {
             to.onError(new IOException());
@@ -853,22 +848,22 @@ public class TestObserverTest extends RxJavaTest {
 
     @Test
     public void assertValuePredicateEmpty() {
-        TestObserver<Object> to = new TestObserver<Object>();
+        assertThrowsWithMessage("No values (latch = 0, values = 0, errors = 0, completions = 1)", AssertionError.class, () -> {
+            TestObserver<Object> to = new TestObserver<>();
 
-        Observable.empty().subscribe(to);
+            Observable.empty().subscribe(to);
 
-        thrown.expect(AssertionError.class);
-        thrown.expectMessage("No values");
-        to.assertValue(new Predicate<Object>() {
-            @Override public boolean test(final Object o) throws Exception {
-                return false;
-            }
+            to.assertValue(new Predicate<Object>() {
+                @Override public boolean test(final Object o) throws Exception {
+                    return false;
+                }
+            });
         });
     }
 
     @Test
     public void assertValuePredicateMatch() {
-        TestObserver<Integer> to = new TestObserver<Integer>();
+        TestObserver<Integer> to = new TestObserver<>();
 
         Observable.just(1).subscribe(to);
 
@@ -881,52 +876,52 @@ public class TestObserverTest extends RxJavaTest {
 
     @Test
     public void assertValuePredicateNoMatch() {
-        TestObserver<Integer> to = new TestObserver<Integer>();
+        assertThrowsWithMessage("Value 1 (class: Integer) at position 0 did not pass the predicate (latch = 0, values = 1, errors = 0, completions = 1)", AssertionError.class, () -> {
+            TestObserver<Integer> to = new TestObserver<>();
 
-        Observable.just(1).subscribe(to);
+            Observable.just(1).subscribe(to);
 
-        thrown.expect(AssertionError.class);
-        thrown.expectMessage("Value not present");
-        to.assertValue(new Predicate<Integer>() {
-            @Override public boolean test(final Integer o) throws Exception {
-                return o != 1;
-            }
+            to.assertValue(new Predicate<Integer>() {
+                @Override public boolean test(final Integer o) throws Exception {
+                    return o != 1;
+                }
+            });
         });
     }
 
     @Test
     public void assertValuePredicateMatchButMore() {
-        TestObserver<Integer> to = new TestObserver<Integer>();
+        assertThrowsWithMessage("The first value passed the predicate but this consumer received more than one value (latch = 0, values = 2, errors = 0, completions = 1)", AssertionError.class, () -> {
+            TestObserver<Integer> to = new TestObserver<>();
 
-        Observable.just(1, 2).subscribe(to);
+            Observable.just(1, 2).subscribe(to);
 
-        thrown.expect(AssertionError.class);
-        thrown.expectMessage("Value present but other values as well");
-        to.assertValue(new Predicate<Integer>() {
-            @Override public boolean test(final Integer o) throws Exception {
-                return o == 1;
-            }
+            to.assertValue(new Predicate<Integer>() {
+                @Override public boolean test(final Integer o) throws Exception {
+                    return o == 1;
+                }
+            });
         });
     }
 
     @Test
     public void assertValueAtPredicateEmpty() {
-        TestObserver<Object> to = new TestObserver<Object>();
+        assertThrowsWithMessage("No values (latch = 0, values = 0, errors = 0, completions = 1)", AssertionError.class, () -> {
+            TestObserver<Object> to = new TestObserver<>();
 
-        Observable.empty().subscribe(to);
+            Observable.empty().subscribe(to);
 
-        thrown.expect(AssertionError.class);
-        thrown.expectMessage("No values");
-        to.assertValueAt(0, new Predicate<Object>() {
-            @Override public boolean test(final Object o) throws Exception {
-                return false;
-            }
+            to.assertValueAt(0, new Predicate<Object>() {
+                @Override public boolean test(final Object o) throws Exception {
+                    return false;
+                }
+            });
         });
     }
 
     @Test
     public void assertValueAtPredicateMatch() {
-        TestObserver<Integer> to = new TestObserver<Integer>();
+        TestObserver<Integer> to = new TestObserver<>();
 
         Observable.just(1, 2).subscribe(to);
 
@@ -939,48 +934,63 @@ public class TestObserverTest extends RxJavaTest {
 
     @Test
     public void assertValueAtPredicateNoMatch() {
-        TestObserver<Integer> to = new TestObserver<Integer>();
+        assertThrowsWithMessage("Value 3 (class: Integer) at position 2 did not pass the predicate (latch = 0, values = 3, errors = 0, completions = 1)", AssertionError.class, () -> {
+            TestObserver<Integer> to = new TestObserver<>();
 
-        Observable.just(1, 2, 3).subscribe(to);
+            Observable.just(1, 2, 3).subscribe(to);
 
-        thrown.expect(AssertionError.class);
-        thrown.expectMessage("Value not present");
-        to.assertValueAt(2, new Predicate<Integer>() {
-            @Override public boolean test(final Integer o) throws Exception {
-                return o != 3;
-            }
+            to.assertValueAt(2, new Predicate<Integer>() {
+                @Override public boolean test(final Integer o) throws Exception {
+                    return o != 3;
+                }
+            });
         });
     }
 
     @Test
     public void assertValueAtInvalidIndex() {
-        TestObserver<Integer> to = new TestObserver<Integer>();
+        assertThrowsWithMessage("Index 2 is out of range [0, 2) (latch = 0, values = 2, errors = 0, completions = 1)", AssertionError.class, () -> {
+            TestObserver<Integer> to = new TestObserver<>();
 
-        Observable.just(1, 2).subscribe(to);
+            Observable.just(1, 2).subscribe(to);
 
-        thrown.expect(AssertionError.class);
-        thrown.expectMessage("Invalid index: 2 (latch = 0, values = 2, errors = 0, completions = 1)");
-        to.assertValueAt(2, new Predicate<Integer>() {
-            @Override public boolean test(final Integer o) throws Exception {
-                return o == 1;
-            }
+            to.assertValueAt(2, new Predicate<Integer>() {
+                @Override public boolean test(final Integer o) throws Exception {
+                    return o == 1;
+                }
+            });
+        });
+    }
+
+    @Test
+    public void assertValueAtInvalidIndexNegative() {
+        assertThrowsWithMessage("Index -2 is out of range [0, 2) (latch = 0, values = 2, errors = 0, completions = 1)", AssertionError.class, () -> {
+            TestObserver<Integer> to = new TestObserver<>();
+
+            Observable.just(1, 2).subscribe(to);
+
+            to.assertValueAt(-2, new Predicate<Integer>() {
+                @Override public boolean test(final Integer o) throws Exception {
+                    return o == 1;
+                }
+            });
         });
     }
 
     @Test
     public void assertValueAtIndexEmpty() {
-        TestObserver<Object> to = new TestObserver<Object>();
+        assertThrowsWithMessage("No values (latch = 0, values = 0, errors = 0, completions = 1)", AssertionError.class, () -> {
+            TestObserver<Object> to = new TestObserver<>();
 
-        Observable.empty().subscribe(to);
+            Observable.empty().subscribe(to);
 
-        thrown.expect(AssertionError.class);
-        thrown.expectMessage("No values");
-        to.assertValueAt(0, "a");
+            to.assertValueAt(0, "a");
+        });
     }
 
     @Test
     public void assertValueAtIndexMatch() {
-        TestObserver<String> to = new TestObserver<String>();
+        TestObserver<String> to = new TestObserver<>();
 
         Observable.just("a", "b").subscribe(to);
 
@@ -989,24 +999,35 @@ public class TestObserverTest extends RxJavaTest {
 
     @Test
     public void assertValueAtIndexNoMatch() {
-        TestObserver<String> to = new TestObserver<String>();
+        assertThrowsWithMessage("expected: b (class: String) but was: c (class: String) at position 2 (latch = 0, values = 3, errors = 0, completions = 1)", AssertionError.class, () -> {
+            TestObserver<String> to = new TestObserver<>();
 
-        Observable.just("a", "b", "c").subscribe(to);
+            Observable.just("a", "b", "c").subscribe(to);
 
-        thrown.expect(AssertionError.class);
-        thrown.expectMessage("expected: b (class: String) but was: c (class: String) (latch = 0, values = 3, errors = 0, completions = 1)");
-        to.assertValueAt(2, "b");
+            to.assertValueAt(2, "b");
+        });
     }
 
     @Test
     public void assertValueAtIndexInvalidIndex() {
-        TestObserver<String> to = new TestObserver<String>();
+        assertThrowsWithMessage("Index 2 is out of range [0, 2) (latch = 0, values = 2, errors = 0, completions = 1)", AssertionError.class, () -> {
+            TestObserver<String> to = new TestObserver<>();
 
-        Observable.just("a", "b").subscribe(to);
+            Observable.just("a", "b").subscribe(to);
 
-        thrown.expect(AssertionError.class);
-        thrown.expectMessage("Invalid index: 2 (latch = 0, values = 2, errors = 0, completions = 1)");
-        to.assertValueAt(2, "c");
+            to.assertValueAt(2, "c");
+        });
+    }
+
+    @Test
+    public void assertValueAtIndexInvalidIndexNegative() {
+        assertThrowsWithMessage("Index -2 is out of range [0, 2) (latch = 0, values = 2, errors = 0, completions = 1)", AssertionError.class, () -> {
+            TestObserver<String> to = new TestObserver<>();
+
+            Observable.just("a", "b").subscribe(to);
+
+            to.assertValueAt(-2, "c");
+        });
     }
 
     @Test
@@ -1028,7 +1049,7 @@ public class TestObserverTest extends RxJavaTest {
     @Test
     public void assertValuesOnly() {
         TestObserver<Integer> to = TestObserver.create();
-        to.onSubscribe(Disposables.empty());
+        to.onSubscribe(Disposable.empty());
         to.assertValuesOnly();
 
         to.onNext(5);
@@ -1041,7 +1062,7 @@ public class TestObserverTest extends RxJavaTest {
     @Test
     public void assertValuesOnlyThrowsOnUnexpectedValue() {
         TestObserver<Integer> to = TestObserver.create();
-        to.onSubscribe(Disposables.empty());
+        to.onSubscribe(Disposable.empty());
         to.assertValuesOnly();
 
         to.onNext(5);
@@ -1060,7 +1081,7 @@ public class TestObserverTest extends RxJavaTest {
     @Test
     public void assertValuesOnlyThrowsWhenCompleted() {
         TestObserver<Integer> to = TestObserver.create();
-        to.onSubscribe(Disposables.empty());
+        to.onSubscribe(Disposable.empty());
 
         to.onComplete();
 
@@ -1075,7 +1096,7 @@ public class TestObserverTest extends RxJavaTest {
     @Test
     public void assertValuesOnlyThrowsWhenErrored() {
         TestObserver<Integer> to = TestObserver.create();
-        to.onSubscribe(Disposables.empty());
+        to.onSubscribe(Disposable.empty());
 
         to.onError(new TestException());
 
@@ -1084,6 +1105,36 @@ public class TestObserverTest extends RxJavaTest {
             throw new RuntimeException();
         } catch (AssertionError ex) {
             // expected
+        }
+    }
+
+    @Test
+    public void onErrorIsNull() {
+        TestObserver<Integer> to = TestObserver.create();
+        to.onSubscribe(Disposable.empty());
+
+        to.onError(null);
+
+        to.assertFailure(NullPointerException.class);
+    }
+
+    @Test
+    public void awaitCountTimeout() {
+        TestObserver<Integer> to = TestObserver.create();
+        to.onSubscribe(Disposable.empty());
+        to.awaitCount(1);
+        assertTrue(to.timeout);
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void awaitCountInterrupted() {
+        try {
+            TestObserver<Integer> to = TestObserver.create();
+            to.onSubscribe(Disposable.empty());
+            Thread.currentThread().interrupt();
+            to.awaitCount(1);
+        } finally {
+            Thread.interrupted();
         }
     }
 }

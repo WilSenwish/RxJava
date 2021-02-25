@@ -19,7 +19,7 @@ import static org.mockito.Mockito.*;
 
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.*;
 
 import org.junit.Test;
 import org.mockito.*;
@@ -436,8 +436,8 @@ public class ObservableCombineLatestTest extends RxJavaTest {
         };
         for (int i = 1; i <= n; i++) {
             System.out.println("test1ToNSources: " + i + " sources");
-            List<Observable<Integer>> sources = new ArrayList<Observable<Integer>>();
-            List<Object> values = new ArrayList<Object>();
+            List<Observable<Integer>> sources = new ArrayList<>();
+            List<Object> values = new ArrayList<>();
             for (int j = 0; j < i; j++) {
                 sources.add(Observable.just(j));
                 values.add(j);
@@ -467,8 +467,8 @@ public class ObservableCombineLatestTest extends RxJavaTest {
         };
         for (int i = 1; i <= n; i++) {
             System.out.println("test1ToNSourcesScheduled: " + i + " sources");
-            List<Observable<Integer>> sources = new ArrayList<Observable<Integer>>();
-            List<Object> values = new ArrayList<Object>();
+            List<Observable<Integer>> sources = new ArrayList<>();
+            List<Object> values = new ArrayList<>();
             for (int j = 0; j < i; j++) {
                 sources.add(Observable.just(j).subscribeOn(Schedulers.io()));
                 values.add(j);
@@ -753,7 +753,7 @@ public class ObservableCombineLatestTest extends RxJavaTest {
                     }
                 }).take(SIZE);
 
-        TestObserver<Long> to = new TestObserver<Long>();
+        TestObserver<Long> to = new TestObserver<>();
 
         Observable.combineLatest(timer, Observable.<Integer> never(), new BiFunction<Long, Integer, Long>() {
             @Override
@@ -789,7 +789,7 @@ public class ObservableCombineLatestTest extends RxJavaTest {
     @SuppressWarnings("unchecked")
     public void combineLatestDelayErrorArrayOfSources() {
 
-        Observable.combineLatestDelayError(new ObservableSource[] {
+        Observable.combineLatestArrayDelayError(new ObservableSource[] {
                 Observable.just(1), Observable.just(2)
         }, new Function<Object[], Object>() {
             @Override
@@ -805,7 +805,7 @@ public class ObservableCombineLatestTest extends RxJavaTest {
     @SuppressWarnings("unchecked")
     public void combineLatestDelayErrorArrayOfSourcesWithError() {
 
-        Observable.combineLatestDelayError(new ObservableSource[] {
+        Observable.combineLatestArrayDelayError(new ObservableSource[] {
                 Observable.just(1), Observable.just(2).concatWith(Observable.<Integer>error(new TestException()))
         }, new Function<Object[], Object>() {
             @Override
@@ -818,7 +818,6 @@ public class ObservableCombineLatestTest extends RxJavaTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     public void combineLatestDelayErrorIterableOfSources() {
 
         Observable.combineLatestDelayError(Arrays.asList(
@@ -834,7 +833,6 @@ public class ObservableCombineLatestTest extends RxJavaTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     public void combineLatestDelayErrorIterableOfSourcesWithError() {
 
         Observable.combineLatestDelayError(Arrays.asList(
@@ -858,7 +856,7 @@ public class ObservableCombineLatestTest extends RxJavaTest {
     @SuppressWarnings("unchecked")
     @Test
     public void combineLatestDelayErrorEmpty() {
-        assertSame(Observable.empty(), Observable.combineLatestDelayError(new ObservableSource[0], Functions.<Object[]>identity(), 16));
+        assertSame(Observable.empty(), Observable.combineLatestArrayDelayError(new ObservableSource[0], Functions.<Object[]>identity(), 16));
     }
 
     @Test
@@ -873,7 +871,7 @@ public class ObservableCombineLatestTest extends RxJavaTest {
 
     @Test
     public void cancelWhileSubscribing() {
-        final TestObserver<Object> to = new TestObserver<Object>();
+        final TestObserver<Object> to = new TestObserver<>();
 
         Observable.combineLatest(
                 Observable.just(1)
@@ -925,7 +923,7 @@ public class ObservableCombineLatestTest extends RxJavaTest {
     @SuppressWarnings("unchecked")
     @Test
     public void errorDelayed() {
-        Observable.combineLatestDelayError(
+        Observable.combineLatestArrayDelayError(
                 new ObservableSource[] { Observable.error(new TestException()), Observable.just(1) },
                 new Function<Object[], Object>() {
                     @Override
@@ -942,7 +940,7 @@ public class ObservableCombineLatestTest extends RxJavaTest {
     @SuppressWarnings("unchecked")
     @Test
     public void errorDelayed2() {
-        Observable.combineLatestDelayError(
+        Observable.combineLatestArrayDelayError(
                 new ObservableSource[] { Observable.error(new TestException()).startWithItem(1), Observable.empty() },
                 new Function<Object[], Object>() {
                     @Override
@@ -1044,7 +1042,6 @@ public class ObservableCombineLatestTest extends RxJavaTest {
         }
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void dontSubscribeIfDone2() {
         List<Throwable> errors = TestHelper.trackPluginErrors();
@@ -1078,7 +1075,6 @@ public class ObservableCombineLatestTest extends RxJavaTest {
         }
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void combine2Observable2Errors() throws Exception {
         List<Throwable> errors = TestHelper.trackPluginErrors();
@@ -1195,7 +1191,6 @@ public class ObservableCombineLatestTest extends RxJavaTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     public void syncFirstErrorsAfterItemDelayError() {
         Observable.combineLatestDelayError(Arrays.asList(
                     Observable.just(21).concatWith(Observable.<Integer>error(new TestException())),
@@ -1211,5 +1206,96 @@ public class ObservableCombineLatestTest extends RxJavaTest {
         .test()
         .awaitDone(5, TimeUnit.SECONDS)
         .assertFailure(TestException.class, 42);
+    }
+
+    @Test
+    public void observableSourcesInIterable() {
+        ObservableSource<Integer> source = new ObservableSource<Integer>() {
+            @Override
+            public void subscribe(Observer<? super Integer> observer) {
+                Observable.just(1).subscribe(observer);
+            }
+        };
+
+        Observable.combineLatest(Arrays.asList(source, source), new Function<Object[], Integer>() {
+            @Override
+            public Integer apply(Object[] t) throws Throwable {
+                return 2;
+            }
+        })
+        .test()
+        .assertResult(2);
+    }
+
+    @Test
+    public void onCompleteDisposeRace() {
+        for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
+
+            TestObserver<Integer> to = new TestObserver<>();
+            PublishSubject<Integer> ps = PublishSubject.create();
+
+            Observable.combineLatest(ps, Observable.never(), (a, b) -> a)
+            .subscribe(to);
+
+            TestHelper.race(() -> ps.onComplete(), () -> to.dispose());
+        }
+    }
+
+    @Test
+    public void onErrorDisposeDelayErrorRace() throws Throwable {
+        TestHelper.withErrorTracking(errors -> {
+            TestException ex = new TestException();
+
+            for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
+
+                TestObserverEx<Object[]> to = new TestObserverEx<>();
+                AtomicReference<Observer<? super Object>> ref = new AtomicReference<>();
+                Observable<Object> o = new Observable<Object>() {
+                    @Override
+                    public void subscribeActual(Observer<? super Object> observer) {
+                        ref.set(observer);
+                    }
+                };
+
+                Observable.combineLatestDelayError(Arrays.asList(o, Observable.never()), (a) -> a)
+                .subscribe(to);
+
+                ref.get().onSubscribe(Disposable.empty());
+
+                TestHelper.race(() -> ref.get().onError(ex), () -> to.dispose());
+
+                if (to.errors().isEmpty()) {
+                    TestHelper.assertUndeliverable(errors, 0, TestException.class);
+                }
+            }
+        });
+    }
+
+    @Test
+    public void doneButNotEmpty() {
+        PublishSubject<Integer> ps1 = PublishSubject.create();
+        PublishSubject<Integer> ps2 = PublishSubject.create();
+
+        TestObserver<Integer> to = Observable.combineLatest(ps1, ps2, (a, b) -> a + b)
+        .doOnNext(v -> {
+            if (v == 2) {
+                ps2.onNext(3);
+                ps2.onComplete();
+                ps1.onComplete();
+            }
+        })
+        .test();
+
+        ps1.onNext(1);
+        ps2.onNext(1);
+
+        to.assertResult(2, 4);
+    }
+
+    @Test
+    public void iterableNullPublisher() {
+        Observable.combineLatest(Arrays.asList(Observable.never(), null), (a) -> a)
+        .test()
+        .assertFailure(NullPointerException.class);
     }
 }

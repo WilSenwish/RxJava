@@ -229,7 +229,7 @@ public class MulticastProcessorTest extends RxJavaTest {
     @Test
     public void crossCancel() {
 
-        final TestSubscriber<Integer> ts1 = new TestSubscriber<Integer>();
+        final TestSubscriber<Integer> ts1 = new TestSubscriber<>();
 
         TestSubscriber<Integer> ts2 = new TestSubscriber<Integer>() {
             @Override
@@ -257,7 +257,7 @@ public class MulticastProcessorTest extends RxJavaTest {
     @Test
     public void crossCancelError() {
 
-        final TestSubscriber<Integer> ts1 = new TestSubscriber<Integer>();
+        final TestSubscriber<Integer> ts1 = new TestSubscriber<>();
 
         TestSubscriber<Integer> ts2 = new TestSubscriber<Integer>() {
             @Override
@@ -285,7 +285,7 @@ public class MulticastProcessorTest extends RxJavaTest {
     @Test
     public void crossCancelComplete() {
 
-        final TestSubscriber<Integer> ts1 = new TestSubscriber<Integer>();
+        final TestSubscriber<Integer> ts1 = new TestSubscriber<>();
 
         TestSubscriber<Integer> ts2 = new TestSubscriber<Integer>() {
             @Override
@@ -314,7 +314,7 @@ public class MulticastProcessorTest extends RxJavaTest {
     @Test
     public void crossCancel1() {
 
-        final TestSubscriber<Integer> ts1 = new TestSubscriber<Integer>(1);
+        final TestSubscriber<Integer> ts1 = new TestSubscriber<>(1);
 
         TestSubscriber<Integer> ts2 = new TestSubscriber<Integer>(1) {
             @Override
@@ -466,7 +466,12 @@ public class MulticastProcessorTest extends RxJavaTest {
             up.onNext(i);
         }
 
-        assertFalse(mp.offer(10));
+        try {
+            mp.offer(10);
+            fail("Should have thrown IllegalStateException");
+        } catch (IllegalStateException expected) {
+            // expected
+        }
 
         up.onComplete();
 
@@ -536,7 +541,7 @@ public class MulticastProcessorTest extends RxJavaTest {
             final MulticastProcessor<Integer> mp = MulticastProcessor.create();
 
             final TestSubscriber<Integer> ts = mp.test();
-            final TestSubscriber<Integer> ts2 = new TestSubscriber<Integer>();
+            final TestSubscriber<Integer> ts2 = new TestSubscriber<>();
 
             Runnable r1 = new Runnable() {
                 @Override
@@ -565,7 +570,7 @@ public class MulticastProcessorTest extends RxJavaTest {
 
             mp.test();
             final TestSubscriber<Integer> ts = mp.test();
-            final TestSubscriber<Integer> ts2 = new TestSubscriber<Integer>();
+            final TestSubscriber<Integer> ts2 = new TestSubscriber<>();
 
             Runnable r1 = new Runnable() {
                 @Override
@@ -593,7 +598,7 @@ public class MulticastProcessorTest extends RxJavaTest {
             final MulticastProcessor<Integer> mp = MulticastProcessor.create(true);
 
             final TestSubscriber<Integer> ts = mp.test();
-            final TestSubscriber<Integer> ts2 = new TestSubscriber<Integer>();
+            final TestSubscriber<Integer> ts2 = new TestSubscriber<>();
 
             Runnable r1 = new Runnable() {
                 @Override
@@ -784,4 +789,41 @@ public class MulticastProcessorTest extends RxJavaTest {
         assertTrue(mp.hasSubscribers());
     }
 
+    @Test
+    public void requestUpstreamPrefetchNonFused() {
+        for (int j = 1; j < 12; j++) {
+            MulticastProcessor<Integer> mp = MulticastProcessor.create(j, true);
+
+            TestSubscriber<Integer> ts = mp.test(0).withTag("Prefetch: " + j);
+
+            Flowable.range(1, 10).hide().subscribe(mp);
+
+            ts.assertEmpty()
+            .requestMore(3)
+            .assertValuesOnly(1, 2, 3)
+            .requestMore(3)
+            .assertValuesOnly(1, 2, 3, 4, 5, 6)
+            .requestMore(4)
+            .assertResult(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+        }
+    }
+
+    @Test
+    public void requestUpstreamPrefetchNonFused2() {
+        for (int j = 1; j < 12; j++) {
+            MulticastProcessor<Integer> mp = MulticastProcessor.create(j, true);
+
+            TestSubscriber<Integer> ts = mp.test(0).withTag("Prefetch: " + j);
+
+            Flowable.range(1, 10).hide().subscribe(mp);
+
+            ts.assertEmpty()
+            .requestMore(2)
+            .assertValuesOnly(1, 2)
+            .requestMore(2)
+            .assertValuesOnly(1, 2, 3, 4)
+            .requestMore(6)
+            .assertResult(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+        }
+    }
 }

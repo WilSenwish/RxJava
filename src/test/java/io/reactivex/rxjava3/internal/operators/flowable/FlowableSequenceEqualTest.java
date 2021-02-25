@@ -384,7 +384,7 @@ public class FlowableSequenceEqualTest extends RxJavaTest {
         };
 
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
-            final TestSubscriber<Boolean> ts = new TestSubscriber<Boolean>();
+            final TestSubscriber<Boolean> ts = new TestSubscriber<>();
 
             final PublishProcessor<Integer> pp = PublishProcessor.create();
 
@@ -487,7 +487,7 @@ public class FlowableSequenceEqualTest extends RxJavaTest {
         };
 
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
-            final TestObserver<Boolean> to = new TestObserver<Boolean>();
+            final TestObserver<Boolean> to = new TestObserver<>();
 
             final PublishProcessor<Integer> pp = PublishProcessor.create();
 
@@ -590,5 +590,27 @@ public class FlowableSequenceEqualTest extends RxJavaTest {
                 return Flowable.sequenceEqual(upstream, Flowable.just(1).hide()).toFlowable();
             }
         });
+    }
+
+    @Test
+    public void fusionRejected() {
+        Flowable.sequenceEqual(TestHelper.rejectFlowableFusion(), Flowable.never())
+        .test()
+        .assertEmpty();
+    }
+
+    @Test
+    public void fusionRejectedFlowable() {
+        Flowable.sequenceEqual(TestHelper.rejectFlowableFusion(), Flowable.never())
+        .toFlowable()
+        .test()
+        .assertEmpty();
+    }
+
+    @Test
+    public void asyncSourceCompare() {
+        Flowable.sequenceEqual(Flowable.fromCallable(() -> 1), Flowable.just(1))
+        .test()
+        .assertResult(true);
     }
 }

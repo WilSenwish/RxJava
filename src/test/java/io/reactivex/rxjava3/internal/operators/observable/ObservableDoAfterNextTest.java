@@ -31,7 +31,7 @@ import io.reactivex.rxjava3.testsupport.*;
 
 public class ObservableDoAfterNextTest extends RxJavaTest {
 
-    final List<Integer> values = new ArrayList<Integer>();
+    final List<Integer> values = new ArrayList<>();
 
     final Consumer<Integer> afterNext = new Consumer<Integer>() {
         @Override
@@ -101,7 +101,7 @@ public class ObservableDoAfterNextTest extends RxJavaTest {
 
     @Test
     public void syncFused() {
-        TestObserverEx<Integer> to0 = new TestObserverEx<Integer>(QueueFuseable.SYNC);
+        TestObserverEx<Integer> to0 = new TestObserverEx<>(QueueFuseable.SYNC);
 
         Observable.range(1, 5)
         .doAfterNext(afterNext)
@@ -115,7 +115,7 @@ public class ObservableDoAfterNextTest extends RxJavaTest {
 
     @Test
     public void asyncFusedRejected() {
-        TestObserverEx<Integer> to0 = new TestObserverEx<Integer>(QueueFuseable.ASYNC);
+        TestObserverEx<Integer> to0 = new TestObserverEx<>(QueueFuseable.ASYNC);
 
         Observable.range(1, 5)
         .doAfterNext(afterNext)
@@ -129,13 +129,13 @@ public class ObservableDoAfterNextTest extends RxJavaTest {
 
     @Test
     public void asyncFused() {
-        TestObserverEx<Integer> to0 = new TestObserverEx<Integer>(QueueFuseable.ASYNC);
+        TestObserverEx<Integer> to0 = new TestObserverEx<>(QueueFuseable.ASYNC);
 
-        UnicastSubject<Integer> up = UnicastSubject.create();
+        UnicastSubject<Integer> us = UnicastSubject.create();
 
-        TestHelper.emit(up, 1, 2, 3, 4, 5);
+        TestHelper.emit(us, 1, 2, 3, 4, 5);
 
-        up
+        us
         .doAfterNext(afterNext)
         .subscribe(to0);
 
@@ -143,11 +143,6 @@ public class ObservableDoAfterNextTest extends RxJavaTest {
         .assertResult(1, 2, 3, 4, 5);
 
         assertEquals(Arrays.asList(-1, -2, -3, -4, -5), values);
-    }
-
-    @Test(expected = NullPointerException.class)
-    public void consumerNull() {
-        Observable.just(1).doAfterNext(null);
     }
 
     @Test
@@ -196,7 +191,7 @@ public class ObservableDoAfterNextTest extends RxJavaTest {
 
     @Test
     public void syncFusedConditional() {
-        TestObserverEx<Integer> to0 = new TestObserverEx<Integer>(QueueFuseable.SYNC);
+        TestObserverEx<Integer> to0 = new TestObserverEx<>(QueueFuseable.SYNC);
 
         Observable.range(1, 5)
         .doAfterNext(afterNext)
@@ -211,7 +206,7 @@ public class ObservableDoAfterNextTest extends RxJavaTest {
 
     @Test
     public void asyncFusedRejectedConditional() {
-        TestObserverEx<Integer> to0 = new TestObserverEx<Integer>(QueueFuseable.ASYNC);
+        TestObserverEx<Integer> to0 = new TestObserverEx<>(QueueFuseable.ASYNC);
 
         Observable.range(1, 5)
         .doAfterNext(afterNext)
@@ -226,13 +221,13 @@ public class ObservableDoAfterNextTest extends RxJavaTest {
 
     @Test
     public void asyncFusedConditional() {
-        TestObserverEx<Integer> to0 = new TestObserverEx<Integer>(QueueFuseable.ASYNC);
+        TestObserverEx<Integer> to0 = new TestObserverEx<>(QueueFuseable.ASYNC);
 
-        UnicastSubject<Integer> up = UnicastSubject.create();
+        UnicastSubject<Integer> us = UnicastSubject.create();
 
-        TestHelper.emit(up, 1, 2, 3, 4, 5);
+        TestHelper.emit(us, 1, 2, 3, 4, 5);
 
-        up
+        us
         .doAfterNext(afterNext)
         .filter(Functions.alwaysTrue())
         .subscribe(to0);

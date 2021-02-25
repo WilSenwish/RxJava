@@ -19,11 +19,15 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
+import org.reactivestreams.Subscriber;
 
+import io.reactivex.rxjava3.annotations.NonNull;
 import io.reactivex.rxjava3.core.*;
 import io.reactivex.rxjava3.exceptions.TestException;
 import io.reactivex.rxjava3.functions.*;
 import io.reactivex.rxjava3.internal.functions.Functions;
+import io.reactivex.rxjava3.internal.fuseable.ConditionalSubscriber;
+import io.reactivex.rxjava3.internal.subscriptions.BooleanSubscription;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import io.reactivex.rxjava3.testsupport.TestHelper;
@@ -177,6 +181,47 @@ public class ParallelMapTest extends RxJavaTest {
         .sequential()
         .test()
         .awaitDone(5, TimeUnit.SECONDS)
+        .assertFailure(TestException.class);
+    }
+
+    @Test
+    public void invalidSubscriberCount() {
+        TestHelper.checkInvalidParallelSubscribers(
+                Flowable.range(1, 10).parallel()
+                .map(v -> v)
+            );
+    }
+
+    @Test
+    public void doubleOnSubscribe() {
+        TestHelper.checkDoubleOnSubscribeParallel(
+                p -> p.map(v -> v)
+            );
+
+        TestHelper.checkDoubleOnSubscribeParallel(
+                p -> p.map(v -> v)
+                .filter(v -> true)
+            );
+    }
+
+    @Test
+    public void conditionalCancelIgnored() {
+        Flowable<Integer> f = new Flowable<Integer>() {
+            @Override
+            protected void subscribeActual(@NonNull Subscriber<@NonNull ? super @NonNull Integer> s) {
+                @SuppressWarnings("unchecked")
+                ConditionalSubscriber<Integer> subscriber = (ConditionalSubscriber<Integer>)s;
+                subscriber.onSubscribe(new BooleanSubscription());
+                subscriber.tryOnNext(1);
+                subscriber.tryOnNext(2);
+            }
+        };
+
+        ParallelFlowable.fromArray(f)
+        .map(v -> { throw new TestException(); })
+        .filter(v -> true)
+        .sequential()
+        .test()
         .assertFailure(TestException.class);
     }
 }

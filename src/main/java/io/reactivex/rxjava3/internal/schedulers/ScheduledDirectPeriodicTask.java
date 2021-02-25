@@ -38,9 +38,11 @@ public final class ScheduledDirectPeriodicTask extends AbstractDirectTask implem
             runnable.run();
             runner = null;
         } catch (Throwable ex) {
+            // Exceptions.throwIfFatal(ex); nowhere to go
+            dispose();
             runner = null;
-            lazySet(FINISHED);
             RxJavaPlugins.onError(ex);
+            throw ex;
         }
     }
 }

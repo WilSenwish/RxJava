@@ -28,11 +28,11 @@ import io.reactivex.rxjava3.functions.Function;
 import io.reactivex.rxjava3.processors.PublishProcessor;
 import io.reactivex.rxjava3.schedulers.*;
 import io.reactivex.rxjava3.subscribers.TestSubscriber;
-import io.reactivex.rxjava3.testsupport.TestHelper;
+import io.reactivex.rxjava3.testsupport.*;
 
 public class FlowableTakeLastTimedTest extends RxJavaTest {
 
-    @Test(expected = IndexOutOfBoundsException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void takeLastTimedWithNegativeCount() {
         Flowable.just("one").takeLast(-1, 1, TimeUnit.SECONDS);
     }
@@ -208,7 +208,7 @@ public class FlowableTakeLastTimedTest extends RxJavaTest {
     public void continuousDelivery() {
         TestScheduler scheduler = new TestScheduler();
 
-        TestSubscriber<Integer> ts = new TestSubscriber<Integer>(0L);
+        TestSubscriber<Integer> ts = new TestSubscriber<>(0L);
 
         PublishProcessor<Integer> pp = PublishProcessor.create();
 
@@ -337,5 +337,28 @@ public class FlowableTakeLastTimedTest extends RxJavaTest {
     @Test
     public void badRequest() {
         TestHelper.assertBadRequestReported(PublishProcessor.create().takeLast(1, TimeUnit.SECONDS));
+    }
+
+    @Test
+    public void lastWindowIsFixedInTime() {
+        TimesteppingScheduler scheduler = new TimesteppingScheduler();
+        scheduler.stepEnabled = false;
+
+        PublishProcessor<Integer> pp = PublishProcessor.create();
+
+        TestSubscriber<Integer> ts = pp
+        .takeLast(2, TimeUnit.SECONDS, scheduler)
+        .test();
+
+        pp.onNext(1);
+        pp.onNext(2);
+        pp.onNext(3);
+        pp.onNext(4);
+
+        scheduler.stepEnabled = true;
+
+        pp.onComplete();
+
+        ts.assertResult(1, 2, 3, 4);
     }
 }

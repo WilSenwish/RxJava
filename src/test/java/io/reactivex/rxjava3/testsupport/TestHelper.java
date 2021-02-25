@@ -30,18 +30,18 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 import org.reactivestreams.*;
 
+import io.reactivex.rxjava3.annotations.*;
 import io.reactivex.rxjava3.core.*;
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.Observer;
 import io.reactivex.rxjava3.disposables.*;
 import io.reactivex.rxjava3.exceptions.*;
 import io.reactivex.rxjava3.functions.*;
-import io.reactivex.rxjava3.internal.functions.ObjectHelper;
 import io.reactivex.rxjava3.internal.fuseable.*;
 import io.reactivex.rxjava3.internal.operators.completable.CompletableToFlowable;
 import io.reactivex.rxjava3.internal.operators.maybe.MaybeToFlowable;
 import io.reactivex.rxjava3.internal.operators.single.SingleToFlowable;
-import io.reactivex.rxjava3.internal.subscriptions.BooleanSubscription;
+import io.reactivex.rxjava3.internal.subscriptions.*;
 import io.reactivex.rxjava3.internal.util.ExceptionHelper;
 import io.reactivex.rxjava3.observers.BaseTestConsumer;
 import io.reactivex.rxjava3.parallel.ParallelFlowable;
@@ -70,7 +70,7 @@ public enum TestHelper {
     public static final int RACE_LONG_LOOPS = 10000;
 
     /**
-     * Mocks a subscriber and prepares it to request Long.MAX_VALUE.
+     * Mocks a subscriber and prepares it to request {@link Long#MAX_VALUE}.
      * @param <T> the value type
      * @return the mocked subscriber
      */
@@ -153,7 +153,7 @@ public enum TestHelper {
     }
 
     public static List<Throwable> trackPluginErrors() {
-        final List<Throwable> list = Collections.synchronizedList(new ArrayList<Throwable>());
+        final List<Throwable> list = Collections.synchronizedList(new ArrayList<>());
 
         RxJavaPlugins.setErrorHandler(new Consumer<Throwable>() {
             @Override
@@ -196,7 +196,7 @@ public enum TestHelper {
             err.initCause(ex);
             throw err;
         }
-        if (!ObjectHelper.equals(message, ex.getMessage())) {
+        if (!Objects.equals(message, ex.getMessage())) {
             AssertionError err = new AssertionError("Message " + message + " expected but got " + ex.getMessage());
             err.initCause(ex);
             throw err;
@@ -216,7 +216,7 @@ public enum TestHelper {
             err.initCause(list.get(index));
             throw err;
         }
-        if (!ObjectHelper.equals(message, ex.getMessage())) {
+        if (!Objects.equals(message, ex.getMessage())) {
             AssertionError err = new AssertionError("Message " + message + " expected but got " + ex.getMessage());
             err.initCause(ex);
             throw err;
@@ -357,6 +357,68 @@ public enum TestHelper {
             RxJavaPlugins.setErrorHandler(null);
         }
     }
+
+    /**
+     * Assert that by consuming the Publisher with a bad request amount, it is
+     * reported to the plugin error handler promptly.
+     * @param source the source to consume
+     */
+    public static void assertBadRequestReported(ParallelFlowable<?> source) {
+        List<Throwable> list = trackPluginErrors();
+        try {
+            final CountDownLatch cdl = new CountDownLatch(1);
+
+            FlowableSubscriber<Object> bad = new FlowableSubscriber<Object>() {
+
+                @Override
+                public void onSubscribe(Subscription s) {
+                    try {
+                        s.request(-99);
+                        s.cancel();
+                        s.cancel();
+                    } finally {
+                        cdl.countDown();
+                    }
+                }
+
+                @Override
+                public void onNext(Object t) {
+
+                }
+
+                @Override
+                public void onError(Throwable t) {
+
+                }
+
+                @Override
+                public void onComplete() {
+
+                }
+
+            };
+
+            @SuppressWarnings("unchecked")
+            FlowableSubscriber<Object>[] subs = new FlowableSubscriber[source.parallelism()];
+            subs[0] = bad;
+            for (int i = 1; i < subs.length; i++) {
+                subs[i] = NoOpConsumer.INSTANCE;
+            }
+            source.subscribe(subs);
+
+            try {
+                assertTrue(cdl.await(5, TimeUnit.SECONDS));
+            } catch (InterruptedException ex) {
+                throw new AssertionError(ex.getMessage());
+            }
+
+            assertTrue(list.toString(), list.get(0) instanceof IllegalArgumentException);
+            assertEquals("n > 0 required but it was -99", list.get(0).getMessage());
+        } finally {
+            RxJavaPlugins.setErrorHandler(null);
+        }
+    }
+
     /**
      * Synchronizes the execution of two runnables (as much as possible)
      * to test race conditions.
@@ -521,11 +583,11 @@ public enum TestHelper {
     public static void doubleOnSubscribe(Observer<?> observer) {
         List<Throwable> errors = trackPluginErrors();
         try {
-            Disposable d1 = Disposables.empty();
+            Disposable d1 = Disposable.empty();
 
             observer.onSubscribe(d1);
 
-            Disposable d2 = Disposables.empty();
+            Disposable d2 = Disposable.empty();
 
             observer.onSubscribe(d2);
 
@@ -547,11 +609,11 @@ public enum TestHelper {
     public static void doubleOnSubscribe(SingleObserver<?> observer) {
         List<Throwable> errors = trackPluginErrors();
         try {
-            Disposable d1 = Disposables.empty();
+            Disposable d1 = Disposable.empty();
 
             observer.onSubscribe(d1);
 
-            Disposable d2 = Disposables.empty();
+            Disposable d2 = Disposable.empty();
 
             observer.onSubscribe(d2);
 
@@ -573,11 +635,11 @@ public enum TestHelper {
     public static void doubleOnSubscribe(CompletableObserver observer) {
         List<Throwable> errors = trackPluginErrors();
         try {
-            Disposable d1 = Disposables.empty();
+            Disposable d1 = Disposable.empty();
 
             observer.onSubscribe(d1);
 
-            Disposable d2 = Disposables.empty();
+            Disposable d2 = Disposable.empty();
 
             observer.onSubscribe(d2);
 
@@ -599,11 +661,11 @@ public enum TestHelper {
     public static void doubleOnSubscribe(MaybeObserver<?> observer) {
         List<Throwable> errors = trackPluginErrors();
         try {
-            Disposable d1 = Disposables.empty();
+            Disposable d1 = Disposable.empty();
 
             observer.onSubscribe(d1);
 
-            Disposable d2 = Disposables.empty();
+            Disposable d2 = Disposable.empty();
 
             observer.onSubscribe(d2);
 
@@ -617,6 +679,18 @@ public enum TestHelper {
         }
     }
 
+    public static void checkDisposed(Disposable d) {
+        assertFalse("Disposed upfront?!", d.isDisposed());
+
+        d.dispose();
+
+        assertTrue("Not disposed?!", d.isDisposed());
+
+        d.dispose();
+
+        assertTrue("Not disposed again?!", d.isDisposed());
+    }
+
     /**
      * Checks if the upstream's Subscription sent through the onSubscribe reports
      * isCancelled properly before and after calling dispose.
@@ -624,7 +698,7 @@ public enum TestHelper {
      * @param source the source to test
      */
     public static <T> void checkDisposed(Flowable<T> source) {
-        final TestSubscriber<Object> ts = new TestSubscriber<Object>(0L);
+        final TestSubscriber<Object> ts = new TestSubscriber<>(0L);
         source.subscribe(new FlowableSubscriber<Object>() {
             @Override
             public void onSubscribe(Subscription s) {
@@ -900,11 +974,11 @@ public enum TestHelper {
                 @Override
                 protected void subscribeActual(MaybeObserver<? super T> observer) {
                     try {
-                        Disposable d1 = Disposables.empty();
+                        Disposable d1 = Disposable.empty();
 
                         observer.onSubscribe(d1);
 
-                        Disposable d2 = Disposables.empty();
+                        Disposable d2 = Disposable.empty();
 
                         observer.onSubscribe(d2);
 
@@ -954,11 +1028,11 @@ public enum TestHelper {
                 @Override
                 protected void subscribeActual(MaybeObserver<? super T> observer) {
                     try {
-                        Disposable d1 = Disposables.empty();
+                        Disposable d1 = Disposable.empty();
 
                         observer.onSubscribe(d1);
 
-                        Disposable d2 = Disposables.empty();
+                        Disposable d2 = Disposable.empty();
 
                         observer.onSubscribe(d2);
 
@@ -1008,11 +1082,11 @@ public enum TestHelper {
                 @Override
                 protected void subscribeActual(MaybeObserver<? super T> observer) {
                     try {
-                        Disposable d1 = Disposables.empty();
+                        Disposable d1 = Disposable.empty();
 
                         observer.onSubscribe(d1);
 
-                        Disposable d2 = Disposables.empty();
+                        Disposable d2 = Disposable.empty();
 
                         observer.onSubscribe(d2);
 
@@ -1062,11 +1136,11 @@ public enum TestHelper {
                 @Override
                 protected void subscribeActual(MaybeObserver<? super T> observer) {
                     try {
-                        Disposable d1 = Disposables.empty();
+                        Disposable d1 = Disposable.empty();
 
                         observer.onSubscribe(d1);
 
-                        Disposable d2 = Disposables.empty();
+                        Disposable d2 = Disposable.empty();
 
                         observer.onSubscribe(d2);
 
@@ -1116,11 +1190,11 @@ public enum TestHelper {
                 @Override
                 protected void subscribeActual(SingleObserver<? super T> observer) {
                     try {
-                        Disposable d1 = Disposables.empty();
+                        Disposable d1 = Disposable.empty();
 
                         observer.onSubscribe(d1);
 
-                        Disposable d2 = Disposables.empty();
+                        Disposable d2 = Disposable.empty();
 
                         observer.onSubscribe(d2);
 
@@ -1170,11 +1244,11 @@ public enum TestHelper {
                 @Override
                 protected void subscribeActual(SingleObserver<? super T> observer) {
                     try {
-                        Disposable d1 = Disposables.empty();
+                        Disposable d1 = Disposable.empty();
 
                         observer.onSubscribe(d1);
 
-                        Disposable d2 = Disposables.empty();
+                        Disposable d2 = Disposable.empty();
 
                         observer.onSubscribe(d2);
 
@@ -1224,11 +1298,11 @@ public enum TestHelper {
                 @Override
                 protected void subscribeActual(SingleObserver<? super T> observer) {
                     try {
-                        Disposable d1 = Disposables.empty();
+                        Disposable d1 = Disposable.empty();
 
                         observer.onSubscribe(d1);
 
-                        Disposable d2 = Disposables.empty();
+                        Disposable d2 = Disposable.empty();
 
                         observer.onSubscribe(d2);
 
@@ -1277,11 +1351,11 @@ public enum TestHelper {
                 @Override
                 protected void subscribeActual(MaybeObserver<? super T> observer) {
                     try {
-                        Disposable d1 = Disposables.empty();
+                        Disposable d1 = Disposable.empty();
 
                         observer.onSubscribe(d1);
 
-                        Disposable d2 = Disposables.empty();
+                        Disposable d2 = Disposable.empty();
 
                         observer.onSubscribe(d2);
 
@@ -1331,11 +1405,11 @@ public enum TestHelper {
                 @Override
                 protected void subscribeActual(SingleObserver<? super T> observer) {
                     try {
-                        Disposable d1 = Disposables.empty();
+                        Disposable d1 = Disposable.empty();
 
                         observer.onSubscribe(d1);
 
-                        Disposable d2 = Disposables.empty();
+                        Disposable d2 = Disposable.empty();
 
                         observer.onSubscribe(d2);
 
@@ -1426,6 +1500,134 @@ public enum TestHelper {
      * Check if the given transformed reactive type reports multiple onSubscribe calls to
      * RxJavaPlugins.
      * @param <T> the input value type
+     * @param transform the transform to drive an operator
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> void checkDoubleOnSubscribeParallel(Function<ParallelFlowable<T>, ? extends ParallelFlowable<?>> transform) {
+        List<Throwable> errors = trackPluginErrors();
+        try {
+            final Boolean[] b = { null, null, null, null };
+            final CountDownLatch cdl = new CountDownLatch(2);
+
+            ParallelFlowable<T> source = new ParallelFlowable<T>() {
+                @Override
+                public void subscribe(Subscriber<? super T>[] subscribers) {
+                    for (int i = 0; i < subscribers.length; i++) {
+                        try {
+                            BooleanSubscription bs1 = new BooleanSubscription();
+
+                            subscribers[i].onSubscribe(bs1);
+
+                            BooleanSubscription bs2 = new BooleanSubscription();
+
+                            subscribers[i].onSubscribe(bs2);
+
+                            b[i * 2 + 0] = bs1.isCancelled();
+                            b[i * 2 + 1] = bs2.isCancelled();
+                        } finally {
+                            cdl.countDown();
+                        }
+                    }
+                }
+
+                @Override
+                public int parallelism() {
+                    return 2;
+                }
+            };
+
+            ParallelFlowable<?> out = transform.apply(source);
+
+            out.subscribe(new Subscriber[] { NoOpConsumer.INSTANCE, NoOpConsumer.INSTANCE });
+
+            try {
+                assertTrue("Timed out", cdl.await(5, TimeUnit.SECONDS));
+            } catch (InterruptedException ex) {
+                throw ExceptionHelper.wrapOrThrow(ex);
+            }
+
+            assertEquals("Rail 1 First disposed?", false, b[0]);
+            assertEquals("Rail 1 Second not disposed?", true, b[1]);
+
+            assertEquals("Rail 2 First disposed?", false, b[2]);
+            assertEquals("Rail 2 Second not disposed?", true, b[3]);
+
+            assertError(errors, 0, IllegalStateException.class, "Subscription already set!");
+            assertError(errors, 1, IllegalStateException.class, "Subscription already set!");
+        } catch (Throwable ex) {
+            throw ExceptionHelper.wrapOrThrow(ex);
+        } finally {
+            RxJavaPlugins.reset();
+        }
+    }
+    /**
+     * Check if the given transformed reactive type reports multiple onSubscribe calls to
+     * RxJavaPlugins.
+     * @param <T> the input value type
+     * @param transform the transform to drive an operator
+     */
+    public static <T> void checkDoubleOnSubscribeParallelToFlowable(Function<ParallelFlowable<T>, ? extends Flowable<?>> transform) {
+        List<Throwable> errors = trackPluginErrors();
+        try {
+            final Boolean[] b = { null, null, null, null };
+            final CountDownLatch cdl = new CountDownLatch(2);
+
+            ParallelFlowable<T> source = new ParallelFlowable<T>() {
+                @Override
+                public void subscribe(Subscriber<? super T>[] subscribers) {
+                    for (int i = 0; i < subscribers.length; i++) {
+                        try {
+                            BooleanSubscription bs1 = new BooleanSubscription();
+
+                            subscribers[i].onSubscribe(bs1);
+
+                            BooleanSubscription bs2 = new BooleanSubscription();
+
+                            subscribers[i].onSubscribe(bs2);
+
+                            b[i * 2 + 0] = bs1.isCancelled();
+                            b[i * 2 + 1] = bs2.isCancelled();
+                        } finally {
+                            cdl.countDown();
+                        }
+                    }
+                }
+
+                @Override
+                public int parallelism() {
+                    return 2;
+                }
+            };
+
+            Flowable<?> out = transform.apply(source);
+
+            out.subscribe(NoOpConsumer.INSTANCE);
+
+            try {
+                assertTrue("Timed out", cdl.await(5, TimeUnit.SECONDS));
+            } catch (InterruptedException ex) {
+                throw ExceptionHelper.wrapOrThrow(ex);
+            }
+
+            assertEquals("Rail 1 First disposed?", false, b[0]);
+            assertEquals("Rail 1 Second not disposed?", true, b[1]);
+
+            assertEquals("Rail 2 First disposed?", false, b[2]);
+            assertEquals("Rail 2 Second not disposed?", true, b[3]);
+
+            assertError(errors, 0, IllegalStateException.class, "Subscription already set!");
+            assertError(errors, 1, IllegalStateException.class, "Subscription already set!");
+        } catch (Throwable ex) {
+            throw ExceptionHelper.wrapOrThrow(ex);
+        } finally {
+            RxJavaPlugins.reset();
+        }
+    }
+
+    /**
+     * Check if the given transformed reactive type reports multiple onSubscribe calls to
+     * RxJavaPlugins.
+     * @param <T> the input value type
      * @param <R> the output value type
      * @param transform the transform to drive an operator
      */
@@ -1439,11 +1641,11 @@ public enum TestHelper {
                 @Override
                 protected void subscribeActual(Observer<? super T> observer) {
                     try {
-                        Disposable d1 = Disposables.empty();
+                        Disposable d1 = Disposable.empty();
 
                         observer.onSubscribe(d1);
 
-                        Disposable d2 = Disposables.empty();
+                        Disposable d2 = Disposable.empty();
 
                         observer.onSubscribe(d2);
 
@@ -1493,11 +1695,11 @@ public enum TestHelper {
                 @Override
                 protected void subscribeActual(Observer<? super T> observer) {
                     try {
-                        Disposable d1 = Disposables.empty();
+                        Disposable d1 = Disposable.empty();
 
                         observer.onSubscribe(d1);
 
-                        Disposable d2 = Disposables.empty();
+                        Disposable d2 = Disposable.empty();
 
                         observer.onSubscribe(d2);
 
@@ -1547,11 +1749,11 @@ public enum TestHelper {
                 @Override
                 protected void subscribeActual(Observer<? super T> observer) {
                     try {
-                        Disposable d1 = Disposables.empty();
+                        Disposable d1 = Disposable.empty();
 
                         observer.onSubscribe(d1);
 
-                        Disposable d2 = Disposables.empty();
+                        Disposable d2 = Disposable.empty();
 
                         observer.onSubscribe(d2);
 
@@ -1600,11 +1802,11 @@ public enum TestHelper {
                 @Override
                 protected void subscribeActual(Observer<? super T> observer) {
                     try {
-                        Disposable d1 = Disposables.empty();
+                        Disposable d1 = Disposable.empty();
 
                         observer.onSubscribe(d1);
 
-                        Disposable d2 = Disposables.empty();
+                        Disposable d2 = Disposable.empty();
 
                         observer.onSubscribe(d2);
 
@@ -1867,11 +2069,11 @@ public enum TestHelper {
                 @Override
                 protected void subscribeActual(CompletableObserver observer) {
                     try {
-                        Disposable d1 = Disposables.empty();
+                        Disposable d1 = Disposable.empty();
 
                         observer.onSubscribe(d1);
 
-                        Disposable d2 = Disposables.empty();
+                        Disposable d2 = Disposable.empty();
 
                         observer.onSubscribe(d2);
 
@@ -1920,11 +2122,11 @@ public enum TestHelper {
                 @Override
                 protected void subscribeActual(CompletableObserver observer) {
                     try {
-                        Disposable d1 = Disposables.empty();
+                        Disposable d1 = Disposable.empty();
 
                         observer.onSubscribe(d1);
 
-                        Disposable d2 = Disposables.empty();
+                        Disposable d2 = Disposable.empty();
 
                         observer.onSubscribe(d2);
 
@@ -1973,11 +2175,11 @@ public enum TestHelper {
                 @Override
                 protected void subscribeActual(CompletableObserver observer) {
                     try {
-                        Disposable d1 = Disposables.empty();
+                        Disposable d1 = Disposable.empty();
 
                         observer.onSubscribe(d1);
 
-                        Disposable d2 = Disposables.empty();
+                        Disposable d2 = Disposable.empty();
 
                         observer.onSubscribe(d2);
 
@@ -2025,11 +2227,11 @@ public enum TestHelper {
                 @Override
                 protected void subscribeActual(CompletableObserver observer) {
                     try {
-                        Disposable d1 = Disposables.empty();
+                        Disposable d1 = Disposable.empty();
 
                         observer.onSubscribe(d1);
 
-                        Disposable d2 = Disposables.empty();
+                        Disposable d2 = Disposable.empty();
 
                         observer.onSubscribe(d2);
 
@@ -2077,11 +2279,11 @@ public enum TestHelper {
                 @Override
                 protected void subscribeActual(CompletableObserver observer) {
                     try {
-                        Disposable d1 = Disposables.empty();
+                        Disposable d1 = Disposable.empty();
 
                         observer.onSubscribe(d1);
 
-                        Disposable d2 = Disposables.empty();
+                        Disposable d2 = Disposable.empty();
 
                         observer.onSubscribe(d2);
 
@@ -2123,10 +2325,10 @@ public enum TestHelper {
     public static <T, U> void checkDisposedMaybe(Function<Maybe<T>, ? extends MaybeSource<U>> composer) {
         PublishProcessor<T> pp = PublishProcessor.create();
 
-        TestSubscriber<U> ts = new TestSubscriber<U>();
+        TestSubscriber<U> ts = new TestSubscriber<>();
 
         try {
-            new MaybeToFlowable<U>(composer.apply(pp.singleElement())).subscribe(ts);
+            new MaybeToFlowable<>(composer.apply(pp.singleElement())).subscribe(ts);
         } catch (Throwable ex) {
             throw ExceptionHelper.wrapOrThrow(ex);
         }
@@ -2145,7 +2347,7 @@ public enum TestHelper {
     public static void checkDisposedCompletable(Function<Completable, ? extends CompletableSource> composer) {
         PublishProcessor<Integer> pp = PublishProcessor.create();
 
-        TestSubscriber<Integer> ts = new TestSubscriber<Integer>();
+        TestSubscriber<Integer> ts = new TestSubscriber<>();
 
         try {
             new CompletableToFlowable<Integer>(composer.apply(pp.ignoreElements())).subscribe(ts);
@@ -2169,10 +2371,34 @@ public enum TestHelper {
     public static <T, U> void checkDisposedMaybeToSingle(Function<Maybe<T>, ? extends SingleSource<U>> composer) {
         PublishProcessor<T> pp = PublishProcessor.create();
 
-        TestSubscriber<U> ts = new TestSubscriber<U>();
+        TestSubscriber<U> ts = new TestSubscriber<>();
 
         try {
-            new SingleToFlowable<U>(composer.apply(pp.singleElement())).subscribe(ts);
+            new SingleToFlowable<>(composer.apply(pp.singleElement())).subscribe(ts);
+        } catch (Throwable ex) {
+            throw ExceptionHelper.wrapOrThrow(ex);
+        }
+
+        assertTrue(pp.hasSubscribers());
+
+        ts.cancel();
+
+        assertFalse(pp.hasSubscribers());
+    }
+
+    /**
+     * Check if the operator applied to a Maybe source propagates dispose properly.
+     * @param <T> the source value type
+     * @param <U> the output value type
+     * @param composer the function to apply an operator to the provided Maybe source
+     */
+    public static <T, U> void checkDisposedSingleToMaybe(Function<Single<T>, ? extends MaybeSource<U>> composer) {
+        PublishProcessor<T> pp = PublishProcessor.create();
+
+        TestSubscriber<U> ts = new TestSubscriber<>();
+
+        try {
+            new MaybeToFlowable<>(composer.apply(pp.singleOrError())).subscribe(ts);
         } catch (Throwable ex) {
             throw ExceptionHelper.wrapOrThrow(ex);
         }
@@ -2190,6 +2416,7 @@ public enum TestHelper {
      * @param ts the TestSubscriber instance
      * @param classes the array of expected Throwables inside the Composite
      */
+    @SafeVarargs
     public static void assertCompositeExceptions(TestSubscriberEx<?> ts, Class<? extends Throwable>... classes) {
         ts
         .assertSubscribed()
@@ -2234,6 +2461,7 @@ public enum TestHelper {
      * @param to the TestSubscriber instance
      * @param classes the array of expected Throwables inside the Composite
      */
+    @SafeVarargs
     public static void assertCompositeExceptions(TestObserverEx<?> to, Class<? extends Throwable>... classes) {
         to
         .assertSubscribed()
@@ -2278,6 +2506,7 @@ public enum TestHelper {
      * @param p the target processor
      * @param values the values to emit
      */
+    @SafeVarargs
     public static <T> void emit(Processor<T, ?> p, T... values) {
         for (T v : values) {
             p.onNext(v);
@@ -2291,6 +2520,7 @@ public enum TestHelper {
      * @param p the target subject
      * @param values the values to emit
      */
+    @SafeVarargs
     public static <T> void emit(Subject<T> p, T... values) {
         for (T v : values) {
             p.onNext(v);
@@ -2466,7 +2696,7 @@ public enum TestHelper {
                 boolean once;
                 @Override
                 protected void subscribeActual(Observer<? super T> observer) {
-                    observer.onSubscribe(Disposables.empty());
+                    observer.onSubscribe(Disposable.empty());
 
                     if (once) {
                         return;
@@ -2495,7 +2725,7 @@ public enum TestHelper {
 
             if (o instanceof ObservableSource) {
                 ObservableSource<?> os = (ObservableSource<?>) o;
-                TestObserverEx<Object> to = new TestObserverEx<Object>();
+                TestObserverEx<Object> to = new TestObserverEx<>();
 
                 os.subscribe(to);
 
@@ -2517,7 +2747,7 @@ public enum TestHelper {
 
             if (o instanceof Publisher) {
                 Publisher<?> os = (Publisher<?>) o;
-                TestSubscriberEx<Object> ts = new TestSubscriberEx<Object>();
+                TestSubscriberEx<Object> ts = new TestSubscriberEx<>();
 
                 os.subscribe(ts);
 
@@ -2539,7 +2769,7 @@ public enum TestHelper {
 
             if (o instanceof SingleSource) {
                 SingleSource<?> os = (SingleSource<?>) o;
-                TestObserverEx<Object> to = new TestObserverEx<Object>();
+                TestObserverEx<Object> to = new TestObserverEx<>();
 
                 os.subscribe(to);
 
@@ -2561,7 +2791,7 @@ public enum TestHelper {
 
             if (o instanceof MaybeSource) {
                 MaybeSource<?> os = (MaybeSource<?>) o;
-                TestObserverEx<Object> to = new TestObserverEx<Object>();
+                TestObserverEx<Object> to = new TestObserverEx<>();
 
                 os.subscribe(to);
 
@@ -2583,7 +2813,7 @@ public enum TestHelper {
 
             if (o instanceof CompletableSource) {
                 CompletableSource os = (CompletableSource) o;
-                TestObserverEx<Object> to = new TestObserverEx<Object>();
+                TestObserverEx<Object> to = new TestObserverEx<>();
 
                 os.subscribe(to);
 
@@ -2654,7 +2884,7 @@ public enum TestHelper {
 
             if (o instanceof ObservableSource) {
                 ObservableSource<?> os = (ObservableSource<?>) o;
-                TestObserverEx<Object> to = new TestObserverEx<Object>();
+                TestObserverEx<Object> to = new TestObserverEx<>();
 
                 os.subscribe(to);
 
@@ -2676,7 +2906,7 @@ public enum TestHelper {
 
             if (o instanceof Publisher) {
                 Publisher<?> os = (Publisher<?>) o;
-                TestSubscriberEx<Object> ts = new TestSubscriberEx<Object>();
+                TestSubscriberEx<Object> ts = new TestSubscriberEx<>();
 
                 os.subscribe(ts);
 
@@ -2698,7 +2928,7 @@ public enum TestHelper {
 
             if (o instanceof SingleSource) {
                 SingleSource<?> os = (SingleSource<?>) o;
-                TestObserverEx<Object> to = new TestObserverEx<Object>();
+                TestObserverEx<Object> to = new TestObserverEx<>();
 
                 os.subscribe(to);
 
@@ -2720,7 +2950,7 @@ public enum TestHelper {
 
             if (o instanceof MaybeSource) {
                 MaybeSource<?> os = (MaybeSource<?>) o;
-                TestObserverEx<Object> to = new TestObserverEx<Object>();
+                TestObserverEx<Object> to = new TestObserverEx<>();
 
                 os.subscribe(to);
 
@@ -2742,7 +2972,7 @@ public enum TestHelper {
 
             if (o instanceof CompletableSource) {
                 CompletableSource os = (CompletableSource) o;
-                TestObserverEx<Object> to = new TestObserverEx<Object>();
+                TestObserverEx<Object> to = new TestObserverEx<>();
 
                 os.subscribe(to);
 
@@ -2778,7 +3008,7 @@ public enum TestHelper {
         @SuppressWarnings("unchecked")
         TestSubscriber<Object>[] tss = new TestSubscriber[n + 1];
         for (int i = 0; i <= n; i++) {
-            tss[i] = new TestSubscriber<Object>().withTag("" + i);
+            tss[i] = new TestSubscriber<>().withTag("" + i);
         }
 
         source.subscribe(tss);
@@ -2788,6 +3018,12 @@ public enum TestHelper {
         }
     }
 
+    /**
+     * Creates a fuseable Observable that does not emit anything but rejects
+     * fusion requests.
+     * @param <T> the element type
+     * @return the new Observable
+     */
     public static <T> Observable<T> rejectObservableFusion() {
         return new Observable<T>() {
             @Override
@@ -2836,6 +3072,12 @@ public enum TestHelper {
         };
     }
 
+    /**
+     * Creates a fuseable Flowable that does not emit anything but rejects
+     * fusion requests.
+     * @param <T> the element type
+     * @return the new Observable
+     */
     public static <T> Flowable<T> rejectFlowableFusion() {
         return new Flowable<T>() {
             @Override
@@ -2893,12 +3135,12 @@ public enum TestHelper {
 
         @Override
         public Flowable<T> apply(Flowable<T> upstream) {
-            return new FlowableStripBoundary<T>(upstream);
+            return new FlowableStripBoundary<>(upstream);
         }
 
         @Override
         protected void subscribeActual(Subscriber<? super T> s) {
-            source.subscribe(new StripBoundarySubscriber<T>(s));
+            source.subscribe(new StripBoundarySubscriber<>(s));
         }
 
         static final class StripBoundarySubscriber<T> implements FlowableSubscriber<T>, QueueSubscription<T> {
@@ -2984,8 +3226,19 @@ public enum TestHelper {
         }
     }
 
+    /**
+     * Strips the {@link QueueFuseable#BOUNDARY} mode flag when the downstream calls {@link QueueSubscription#requestFusion(int)}.
+     * <p>
+     * By default, many operators use {@link QueueFuseable#BOUNDARY} to indicate upstream side-effects
+     * should not leak over a fused boundary. However, some tests want to verify if {@link QueueSubscription#poll()} crashes
+     * are handled correctly and the most convenient way is to crash {@link Flowable#map} that won't fuse with {@code BOUNDARY}
+     * flag. This transformer strips this flag and thus allows the function of {@code map} to be executed as part of the
+     * {@code poll()} chain.
+     * @param <T> the element type of the flow
+     * @return the new Transformer instance
+     */
     public static <T> FlowableTransformer<T, T> flowableStripBoundary() {
-        return new FlowableStripBoundary<T>(null);
+        return new FlowableStripBoundary<>(null);
     }
 
     static final class ObservableStripBoundary<T> extends Observable<T> implements ObservableTransformer<T, T> {
@@ -2998,12 +3251,12 @@ public enum TestHelper {
 
         @Override
         public Observable<T> apply(Observable<T> upstream) {
-            return new ObservableStripBoundary<T>(upstream);
+            return new ObservableStripBoundary<>(upstream);
         }
 
         @Override
         protected void subscribeActual(Observer<? super T> observer) {
-            source.subscribe(new StripBoundaryObserver<T>(observer));
+            source.subscribe(new StripBoundaryObserver<>(observer));
         }
 
         static final class StripBoundaryObserver<T> implements Observer<T>, QueueDisposable<T> {
@@ -3089,24 +3342,35 @@ public enum TestHelper {
         }
     }
 
+    /**
+     * Strips the {@link QueueFuseable#BOUNDARY} mode flag when the downstream calls {@link QueueDisposable#requestFusion(int)}.
+     * <p>
+     * By default, many operators use {@link QueueFuseable#BOUNDARY} to indicate upstream side-effects
+     * should not leak over a fused boundary. However, some tests want to verify if {@link QueueDisposable#poll()} crashes
+     * are handled correctly and the most convenient way is to crash {@link Observable#map} that won't fuse with {@code BOUNDARY}
+     * flag. This transformer strips this flag and thus allows the function of {@code map} to be executed as part of the
+     * {@code poll()} chain.
+     * @param <T> the element type of the flow
+     * @return the new Transformer instance
+     */
     public static <T> ObservableTransformer<T, T> observableStripBoundary() {
-        return new ObservableStripBoundary<T>(null);
+        return new ObservableStripBoundary<>(null);
     }
 
     public static <T> TestConsumerExConverters<T> testConsumer() {
-        return new TestConsumerExConverters<T>(false, 0);
+        return new TestConsumerExConverters<>(false, 0);
     }
 
     public static <T> TestConsumerExConverters<T> testConsumer(boolean cancelled) {
-        return new TestConsumerExConverters<T>(cancelled, 0);
+        return new TestConsumerExConverters<>(cancelled, 0);
     }
 
     public static <T> TestConsumerExConverters<T> testConsumer(final int fusionMode, final boolean cancelled) {
-        return new TestConsumerExConverters<T>(cancelled, fusionMode);
+        return new TestConsumerExConverters<>(cancelled, fusionMode);
     }
 
     public static <T> TestConsumerExConverters<T> testConsumer(final boolean cancelled, final int fusionMode) {
-        return new TestConsumerExConverters<T>(cancelled, fusionMode);
+        return new TestConsumerExConverters<>(cancelled, fusionMode);
     }
 
     public static <T> FlowableConverter<T, TestSubscriberEx<T>> testSubscriber(final long initialRequest) {
@@ -3125,7 +3389,7 @@ public enum TestHelper {
         return new FlowableConverter<T, TestSubscriberEx<T>>() {
             @Override
             public TestSubscriberEx<T> apply(Flowable<T> f) {
-                TestSubscriberEx<T> tse = new TestSubscriberEx<T>(initialRequest);
+                TestSubscriberEx<T> tse = new TestSubscriberEx<>(initialRequest);
                 if (cancelled) {
                     tse.cancel();
                 }
@@ -3153,7 +3417,7 @@ public enum TestHelper {
 
         @Override
         public TestObserverEx<Void> apply(Completable upstream) {
-            TestObserverEx<Void> toe = new TestObserverEx<Void>();
+            TestObserverEx<Void> toe = new TestObserverEx<>();
             if (cancelled) {
                 toe.dispose();
             }
@@ -3163,7 +3427,7 @@ public enum TestHelper {
 
         @Override
         public TestObserverEx<T> apply(Maybe<T> upstream) {
-            TestObserverEx<T> toe = new TestObserverEx<T>();
+            TestObserverEx<T> toe = new TestObserverEx<>();
             if (cancelled) {
                 toe.dispose();
             }
@@ -3173,7 +3437,7 @@ public enum TestHelper {
 
         @Override
         public TestObserverEx<T> apply(Single<T> upstream) {
-            TestObserverEx<T> toe = new TestObserverEx<T>();
+            TestObserverEx<T> toe = new TestObserverEx<>();
             if (cancelled) {
                 toe.dispose();
             }
@@ -3183,7 +3447,7 @@ public enum TestHelper {
 
         @Override
         public TestObserverEx<T> apply(Observable<T> upstream) {
-            TestObserverEx<T> toe = new TestObserverEx<T>();
+            TestObserverEx<T> toe = new TestObserverEx<>();
             if (cancelled) {
                 toe.dispose();
             }
@@ -3193,7 +3457,7 @@ public enum TestHelper {
 
         @Override
         public TestSubscriberEx<T> apply(Flowable<T> upstream) {
-            TestSubscriberEx<T> tse = new TestSubscriberEx<T>();
+            TestSubscriberEx<T> tse = new TestSubscriberEx<>();
             if (cancelled) {
                 tse.dispose();
             }
@@ -3202,8 +3466,9 @@ public enum TestHelper {
         }
     }
 
+    @SafeVarargs
     public static <T> TestSubscriberEx<T> assertValueSet(TestSubscriberEx<T> ts, T... values) {
-        Set<T> expectedSet = new HashSet<T>(Arrays.asList(values));
+        Set<T> expectedSet = new HashSet<>(Arrays.asList(values));
         for (T t : ts.values()) {
             if (!expectedSet.contains(t)) {
                 throw ts.failWith("Item not in the set: " + BaseTestConsumer.valueAndClass(t));
@@ -3212,8 +3477,9 @@ public enum TestHelper {
         return ts;
     }
 
+    @SafeVarargs
     public static <T> TestObserverEx<T> assertValueSet(TestObserverEx<T> to, T... values) {
-        Set<T> expectedSet = new HashSet<T>(Arrays.asList(values));
+        Set<T> expectedSet = new HashSet<>(Arrays.asList(values));
         for (T t : to.values()) {
             if (!expectedSet.contains(t)) {
                 throw to.failWith("Item not in the set: " + BaseTestConsumer.valueAndClass(t));
@@ -3230,31 +3496,54 @@ public enum TestHelper {
      * @throws Exception on error
      */
     public static File findSource(String baseClassName) throws Exception {
+        return findSource(baseClassName, "io.reactivex.rxjava3.core");
+    }
+
+    /**
+     * Given a base reactive type name, try to find its source in the current runtime
+     * path and return a file to it or null if not found.
+     * @param baseClassName the class name such as {@code Maybe}
+     * @param parentPackage the parent package such as {@code io.reactivex.rxjava3.core}
+     * @return the File pointing to the source
+     * @throws Exception on error
+     */
+    public static File findSource(String baseClassName, String parentPackage) throws Exception {
         URL u = TestHelper.class.getResource(TestHelper.class.getSimpleName() + ".class");
 
         String path = new File(u.toURI()).toString().replace('\\', '/');
 
+        parentPackage = parentPackage.replace(".", "/");
 //        System.out.println(path);
 
-        int i = path.toLowerCase().indexOf("/rxjava");
-        if (i < 0) {
-            System.out.println("Can't find the base RxJava directory");
-            return null;
+        // Locate the src/main/java directory
+        String p = null;
+        while (true) {
+            int idx = path.lastIndexOf("/");
+            if (idx < 0) {
+                break;
+            }
+            path = path.substring(0, idx);
+            String check = path + "/src/main/java";
+
+            if (new File(check).exists()) {
+                p = check + "/" + parentPackage + "/" + baseClassName + ".java";
+                break;
+            }
         }
 
-        // find end of any potential postfix to /RxJava
-        int j = path.indexOf("/", i + 6);
-
-        String p = path.substring(0, j + 1) + "src/main/java/io/reactivex/rxjava3/core/" + baseClassName + ".java";
+        if (p == null) {
+            System.err.println("Unable to locate the RxJava sources");
+            return null;
+        }
 
         File f = new File(p);
 
-        if (!f.canRead()) {
-            System.out.println("Can't read " + p);
-            return null;
+        if (f.canRead()) {
+            return f;
         }
 
-        return f;
+        System.out.println("Can't read " + p);
+        return null;
     }
 
     /**
@@ -3280,36 +3569,36 @@ public enum TestHelper {
             .to(transform);
 
             if (result instanceof MaybeSource) {
-                TestObserverEx<Object> to = new TestObserverEx<Object>();
+                TestObserverEx<Object> to = new TestObserverEx<>();
                 disposable.set(to);
 
                 ((MaybeSource<?>)result)
                 .subscribe(to);
                 to.assertEmpty();
             } else if (result instanceof SingleSource) {
-                TestObserverEx<Object> to = new TestObserverEx<Object>();
+                TestObserverEx<Object> to = new TestObserverEx<>();
                 disposable.set(to);
 
                 ((SingleSource<?>)result)
                 .subscribe(to);
                 to.assertEmpty();
             } else if (result instanceof CompletableSource) {
-                TestObserverEx<Object> to = new TestObserverEx<Object>();
+                TestObserverEx<Object> to = new TestObserverEx<>();
                 disposable.set(to);
 
                 ((CompletableSource)result)
                 .subscribe(to);
                 to.assertEmpty();
             } else if (result instanceof ObservableSource) {
-                TestObserverEx<Object> to = new TestObserverEx<Object>();
+                TestObserverEx<Object> to = new TestObserverEx<>();
                 disposable.set(to);
 
                 ((ObservableSource<?>)result)
                 .subscribe(to);
                 to.assertEmpty();
             } else if (result instanceof Publisher) {
-                TestSubscriberEx<Object> ts = new TestSubscriberEx<Object>();
-                disposable.set(Disposables.fromSubscription(ts));
+                TestSubscriberEx<Object> ts = new TestSubscriberEx<>();
+                disposable.set(Disposable.fromSubscription(ts));
 
                 ((Publisher<?>)result)
                 .subscribe(ts);
@@ -3348,36 +3637,36 @@ public enum TestHelper {
             .to(transform);
 
             if (result instanceof MaybeSource) {
-                TestObserverEx<Object> to = new TestObserverEx<Object>();
+                TestObserverEx<Object> to = new TestObserverEx<>();
                 disposable.set(to);
 
                 ((MaybeSource<?>)result)
                 .subscribe(to);
                 to.assertEmpty();
             } else if (result instanceof SingleSource) {
-                TestObserverEx<Object> to = new TestObserverEx<Object>();
+                TestObserverEx<Object> to = new TestObserverEx<>();
                 disposable.set(to);
 
                 ((SingleSource<?>)result)
                 .subscribe(to);
                 to.assertEmpty();
             } else if (result instanceof CompletableSource) {
-                TestObserverEx<Object> to = new TestObserverEx<Object>();
+                TestObserverEx<Object> to = new TestObserverEx<>();
                 disposable.set(to);
 
                 ((CompletableSource)result)
                 .subscribe(to);
                 to.assertEmpty();
             } else if (result instanceof ObservableSource) {
-                TestObserverEx<Object> to = new TestObserverEx<Object>();
+                TestObserverEx<Object> to = new TestObserverEx<>();
                 disposable.set(to);
 
                 ((ObservableSource<?>)result)
                 .subscribe(to);
                 to.assertEmpty();
             } else if (result instanceof Publisher) {
-                TestSubscriberEx<Object> ts = new TestSubscriberEx<Object>();
-                disposable.set(Disposables.fromSubscription(ts));
+                TestSubscriberEx<Object> ts = new TestSubscriberEx<>();
+                disposable.set(Disposable.fromSubscription(ts));
 
                 ((Publisher<?>)result)
                 .subscribe(ts);
@@ -3418,5 +3707,156 @@ public enum TestHelper {
             Thread.sleep(oneSleep);
         }
         return bean.getHeapMemoryUsage().getUsed();
+    }
+
+    /**
+     * Enable thracking of the global errors for the duration of the action.
+     * @param action the action to run with a list of errors encountered
+     * @throws Throwable the exception rethrown from the action
+     */
+    public static void withErrorTracking(Consumer<List<Throwable>> action) throws Throwable {
+        List<Throwable> errors = trackPluginErrors();
+        try {
+            action.accept(errors);
+        } finally {
+            RxJavaPlugins.reset();
+        }
+    }
+
+    /**
+     * Assert if the given CompletableFuture fails with a specified error inside an ExecutionException.
+     * @param cf the CompletableFuture to test
+     * @param error the error class expected
+     */
+    public static void assertError(CompletableFuture<?> cf, Class<? extends Throwable> error) {
+        try {
+            cf.get();
+            fail("Should have thrown!");
+        } catch (Throwable ex) {
+            if (!error.isInstance(ex.getCause())) {
+                ex.printStackTrace();
+                fail("Wrong cause: " + ex.getCause());
+            }
+        }
+    }
+
+    /**
+     * Syncs the execution of the given runnable with the execution of the
+     * current thread.
+     * @param run the other task to run in sync with the current thread
+     * @param resume the latch to count down after the {@code run}
+     */
+    public static void raceOther(Runnable run, CountDownLatch resume) {
+        AtomicInteger sync = new AtomicInteger(2);
+
+        Schedulers.single().scheduleDirect(() -> {
+            if (sync.decrementAndGet() != 0) {
+                while (sync.get() != 0) { }
+            }
+
+            run.run();
+
+            resume.countDown();
+        });
+
+        if (sync.decrementAndGet() != 0) {
+            while (sync.get() != 0) { }
+        }
+    }
+
+    /**
+     * Inserts a ConditionalSubscriber into the chain to trigger the conditional paths
+     * without interfering with the requestFusion parts.
+     * @param <T> the element type
+     * @return the new FlowableTransformer instance
+     */
+    public static <T> FlowableTransformer<T, T> conditional() {
+        return f -> new Flowable<T>() {
+            @Override
+            protected void subscribeActual(@NonNull Subscriber<@NonNull ? super T> subscriber) {
+                f.subscribe(new ForwardingConditionalSubscriber<>(subscriber));
+            }
+        };
+    }
+
+    /**
+     * Wraps a Subscriber and exposes it as a fuseable conditional subscriber without interfering with
+     * requestFusion.
+     * @param <T> the element type
+     */
+    static final class ForwardingConditionalSubscriber<T> extends BasicQueueSubscription<T> implements ConditionalSubscriber<T> {
+
+        private static final long serialVersionUID = 365317603608134078L;
+
+        final Subscriber<? super T> downstream;
+
+        Subscription upstream;
+
+        QueueSubscription<T> qs;
+
+        ForwardingConditionalSubscriber(Subscriber<? super T> downstream) {
+            this.downstream = downstream;
+        }
+
+        @SuppressWarnings("unchecked")
+        @Override
+        public void onSubscribe(@NonNull Subscription s) {
+            this.upstream = s;
+            if (s instanceof QueueSubscription) {
+                this.qs = (QueueSubscription<T>)s;
+            }
+            downstream.onSubscribe(this);
+        }
+
+        @Override
+        public void onNext(@NonNull T t) {
+            downstream.onNext(t);
+        }
+
+        @Override
+        public boolean tryOnNext(@NonNull T t) {
+            downstream.onNext(t);
+            return true;
+        }
+
+        @Override
+        public void onError(Throwable t) {
+            downstream.onError(t);
+        }
+
+        @Override
+        public void onComplete() {
+            downstream.onComplete();
+        }
+
+        @Override
+        public int requestFusion(int mode) {
+            return qs != null ? qs.requestFusion(mode) : 0;
+        }
+
+        @Override
+        public @Nullable T poll() throws Throwable {
+            return qs.poll();
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return qs.isEmpty();
+        }
+
+        @Override
+        public void clear() {
+            qs.clear();
+        }
+
+        @Override
+        public void request(long n) {
+            upstream.request(n);
+        }
+
+        @Override
+        public void cancel() {
+            upstream.cancel();
+        }
     }
 }

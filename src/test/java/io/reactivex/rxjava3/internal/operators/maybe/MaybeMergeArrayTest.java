@@ -21,18 +21,17 @@ import org.junit.Test;
 import org.reactivestreams.Subscription;
 
 import io.reactivex.rxjava3.core.*;
-import io.reactivex.rxjava3.disposables.Disposables;
+import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.exceptions.TestException;
 import io.reactivex.rxjava3.internal.fuseable.*;
 import io.reactivex.rxjava3.internal.operators.maybe.MaybeMergeArray.MergeMaybeObserver;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
-import io.reactivex.rxjava3.subjects.PublishSubject;
+import io.reactivex.rxjava3.subjects.*;
 import io.reactivex.rxjava3.subscribers.TestSubscriber;
 import io.reactivex.rxjava3.testsupport.*;
 
 public class MaybeMergeArrayTest extends RxJavaTest {
 
-    @SuppressWarnings("unchecked")
     @Test
     public void normal() {
         TestSubscriberEx<Integer> ts = new TestSubscriberEx<Integer>().setInitialFusionMode(QueueFuseable.SYNC);
@@ -45,7 +44,6 @@ public class MaybeMergeArrayTest extends RxJavaTest {
         .assertResult(1, 2);
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void fusedPollMixed() {
         TestSubscriberEx<Integer> ts = new TestSubscriberEx<Integer>().setInitialFusionMode(QueueFuseable.ANY);
@@ -92,10 +90,9 @@ public class MaybeMergeArrayTest extends RxJavaTest {
         });
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void cancel() {
-        TestSubscriber<Integer> ts = new TestSubscriber<Integer>(0L);
+        TestSubscriber<Integer> ts = new TestSubscriber<>(0L);
 
         Maybe.mergeArray(Maybe.just(1), Maybe.<Integer>empty(), Maybe.just(2))
         .subscribe(ts);
@@ -106,10 +103,9 @@ public class MaybeMergeArrayTest extends RxJavaTest {
         ts.assertEmpty();
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void firstErrors() {
-        TestSubscriber<Integer> ts = new TestSubscriber<Integer>(0L);
+        TestSubscriber<Integer> ts = new TestSubscriber<>(0L);
 
         Maybe.mergeArray(Maybe.<Integer>error(new TestException()), Maybe.<Integer>empty(), Maybe.just(2))
         .subscribe(ts);
@@ -117,7 +113,6 @@ public class MaybeMergeArrayTest extends RxJavaTest {
         ts.assertFailure(TestException.class);
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void errorFused() {
         TestSubscriberEx<Integer> ts = new TestSubscriberEx<Integer>().setInitialFusionMode(QueueFuseable.ANY);
@@ -130,7 +125,6 @@ public class MaybeMergeArrayTest extends RxJavaTest {
         .assertFailure(TestException.class);
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void errorRace() {
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
@@ -172,13 +166,12 @@ public class MaybeMergeArrayTest extends RxJavaTest {
         }
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void mergeBadSource() {
         Maybe.mergeArray(new Maybe<Integer>() {
             @Override
             protected void subscribeActual(MaybeObserver<? super Integer> observer) {
-                observer.onSubscribe(Disposables.empty());
+                observer.onSubscribe(Disposable.empty());
                 observer.onSuccess(1);
                 observer.onSuccess(2);
                 observer.onSuccess(3);
@@ -256,5 +249,26 @@ public class MaybeMergeArrayTest extends RxJavaTest {
             public void onComplete() {
             }
         });
+    }
+
+    @Test
+    public void badRequest() {
+        TestHelper.assertBadRequestReported(
+                Maybe.mergeArray(MaybeSubject.create(), MaybeSubject.create())
+        );
+    }
+
+    @Test
+    public void cancel2() {
+        TestHelper.checkDisposed(Maybe.mergeArray(MaybeSubject.create(), MaybeSubject.create()));
+    }
+
+    @Test
+    public void take() {
+        Maybe.mergeArray(Maybe.just(1), Maybe.empty(), Maybe.just(2))
+        .doOnSubscribe(s -> s.request(Long.MAX_VALUE))
+        .take(1)
+        .test()
+        .assertResult(1);
     }
 }

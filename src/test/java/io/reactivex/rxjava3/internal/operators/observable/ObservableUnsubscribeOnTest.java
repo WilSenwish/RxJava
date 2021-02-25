@@ -26,6 +26,7 @@ import io.reactivex.rxjava3.core.*;
 import io.reactivex.rxjava3.disposables.*;
 import io.reactivex.rxjava3.exceptions.TestException;
 import io.reactivex.rxjava3.functions.Action;
+import io.reactivex.rxjava3.internal.schedulers.ImmediateThinScheduler;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import io.reactivex.rxjava3.testsupport.*;
@@ -37,7 +38,7 @@ public class ObservableUnsubscribeOnTest extends RxJavaTest {
         UIEventLoopScheduler uiEventLoop = new UIEventLoopScheduler();
         try {
             final ThreadSubscription subscription = new ThreadSubscription();
-            final AtomicReference<Thread> subscribeThread = new AtomicReference<Thread>();
+            final AtomicReference<Thread> subscribeThread = new AtomicReference<>();
             Observable<Integer> w = Observable.unsafeCreate(new ObservableSource<Integer>() {
 
                 @Override
@@ -53,7 +54,7 @@ public class ObservableUnsubscribeOnTest extends RxJavaTest {
                 }
             });
 
-            TestObserverEx<Integer> observer = new TestObserverEx<Integer>();
+            TestObserverEx<Integer> observer = new TestObserverEx<>();
 
             w.subscribeOn(uiEventLoop).observeOn(Schedulers.computation())
             .unsubscribeOn(uiEventLoop)
@@ -87,7 +88,7 @@ public class ObservableUnsubscribeOnTest extends RxJavaTest {
         UIEventLoopScheduler uiEventLoop = new UIEventLoopScheduler();
         try {
             final ThreadSubscription subscription = new ThreadSubscription();
-            final AtomicReference<Thread> subscribeThread = new AtomicReference<Thread>();
+            final AtomicReference<Thread> subscribeThread = new AtomicReference<>();
             Observable<Integer> w = Observable.unsafeCreate(new ObservableSource<Integer>() {
 
                 @Override
@@ -103,7 +104,7 @@ public class ObservableUnsubscribeOnTest extends RxJavaTest {
                 }
             });
 
-            TestObserverEx<Integer> observer = new TestObserverEx<Integer>();
+            TestObserverEx<Integer> observer = new TestObserverEx<>();
 
             w.subscribeOn(Schedulers.newThread()).observeOn(Schedulers.computation())
             .unsubscribeOn(uiEventLoop)
@@ -248,7 +249,7 @@ public class ObservableUnsubscribeOnTest extends RxJavaTest {
             new Observable<Integer>() {
                 @Override
                 protected void subscribeActual(Observer<? super Integer> observer) {
-                    observer.onSubscribe(Disposables.empty());
+                    observer.onSubscribe(Disposable.empty());
                     observer.onNext(1);
                     observer.onNext(2);
                     observer.onError(new TestException());
@@ -264,5 +265,10 @@ public class ObservableUnsubscribeOnTest extends RxJavaTest {
         } finally {
             RxJavaPlugins.reset();
         }
+    }
+
+    @Test
+    public void doubleOnSubscribe() {
+        TestHelper.checkDoubleOnSubscribeObservable(o -> o.unsubscribeOn(ImmediateThinScheduler.INSTANCE));
     }
 }

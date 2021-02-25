@@ -60,21 +60,25 @@ public class MiscUtilTest extends RxJavaTest {
     @Test
     public void linkedArrayList() {
         LinkedArrayList list = new LinkedArrayList(2);
+        assertEquals(0, list.size());
         list.add(1);
+        assertEquals(1, list.size());
         list.add(2);
+        assertEquals(2, list.size());
         list.add(3);
+        assertEquals(3, list.size());
         assertEquals("[1, 2, 3]", list.toString());
     }
 
     @Test
     public void appendOnlyLinkedArrayListForEachWhile() throws Exception {
-        AppendOnlyLinkedArrayList<Integer> list = new AppendOnlyLinkedArrayList<Integer>(2);
+        AppendOnlyLinkedArrayList<Integer> list = new AppendOnlyLinkedArrayList<>(2);
 
         list.add(1);
         list.add(2);
         list.add(3);
 
-        final List<Integer> out = new ArrayList<Integer>();
+        final List<Integer> out = new ArrayList<>();
 
         list.forEachWhile(new NonThrowingPredicate<Integer>() {
             @Override
@@ -89,13 +93,13 @@ public class MiscUtilTest extends RxJavaTest {
 
     @Test
     public void appendOnlyLinkedArrayListForEachWhileBi() throws Throwable {
-        AppendOnlyLinkedArrayList<Integer> list = new AppendOnlyLinkedArrayList<Integer>(2);
+        AppendOnlyLinkedArrayList<Integer> list = new AppendOnlyLinkedArrayList<>(2);
 
         list.add(1);
         list.add(2);
         list.add(3);
 
-        final List<Integer> out = new ArrayList<Integer>();
+        final List<Integer> out = new ArrayList<>();
 
         list.forEachWhile(2, new BiPredicate<Integer, Integer>() {
             @Override
@@ -110,13 +114,13 @@ public class MiscUtilTest extends RxJavaTest {
 
     @Test
     public void appendOnlyLinkedArrayListForEachWhilePreGrow() throws Exception {
-        AppendOnlyLinkedArrayList<Integer> list = new AppendOnlyLinkedArrayList<Integer>(12);
+        AppendOnlyLinkedArrayList<Integer> list = new AppendOnlyLinkedArrayList<>(12);
 
         list.add(1);
         list.add(2);
         list.add(3);
 
-        final List<Integer> out = new ArrayList<Integer>();
+        final List<Integer> out = new ArrayList<>();
 
         list.forEachWhile(new NonThrowingPredicate<Integer>() {
             @Override
@@ -131,13 +135,13 @@ public class MiscUtilTest extends RxJavaTest {
 
     @Test
     public void appendOnlyLinkedArrayListForEachWhileExact() throws Exception {
-        AppendOnlyLinkedArrayList<Integer> list = new AppendOnlyLinkedArrayList<Integer>(3);
+        AppendOnlyLinkedArrayList<Integer> list = new AppendOnlyLinkedArrayList<>(3);
 
         list.add(1);
         list.add(2);
         list.add(3);
 
-        final List<Integer> out = new ArrayList<Integer>();
+        final List<Integer> out = new ArrayList<>();
 
         list.forEachWhile(new NonThrowingPredicate<Integer>() {
             @Override
@@ -152,13 +156,13 @@ public class MiscUtilTest extends RxJavaTest {
 
     @Test
     public void appendOnlyLinkedArrayListForEachWhileAll() throws Exception {
-        AppendOnlyLinkedArrayList<Integer> list = new AppendOnlyLinkedArrayList<Integer>(2);
+        AppendOnlyLinkedArrayList<Integer> list = new AppendOnlyLinkedArrayList<>(2);
 
         list.add(1);
         list.add(2);
         list.add(3);
 
-        final List<Integer> out = new ArrayList<Integer>();
+        final List<Integer> out = new ArrayList<>();
 
         list.forEachWhile(new NonThrowingPredicate<Integer>() {
             @Override
@@ -173,13 +177,13 @@ public class MiscUtilTest extends RxJavaTest {
 
     @Test
     public void appendOnlyLinkedArrayListForEachWhileBigger() throws Exception {
-        AppendOnlyLinkedArrayList<Integer> list = new AppendOnlyLinkedArrayList<Integer>(4);
+        AppendOnlyLinkedArrayList<Integer> list = new AppendOnlyLinkedArrayList<>(4);
 
         list.add(1);
         list.add(2);
         list.add(3);
 
-        final List<Integer> out = new ArrayList<Integer>();
+        final List<Integer> out = new ArrayList<>();
 
         list.forEachWhile(new NonThrowingPredicate<Integer>() {
             @Override
@@ -194,13 +198,13 @@ public class MiscUtilTest extends RxJavaTest {
 
     @Test
     public void appendOnlyLinkedArrayListForEachWhileBiPreGrow() throws Throwable {
-        AppendOnlyLinkedArrayList<Integer> list = new AppendOnlyLinkedArrayList<Integer>(12);
+        AppendOnlyLinkedArrayList<Integer> list = new AppendOnlyLinkedArrayList<>(12);
 
         list.add(1);
         list.add(2);
         list.add(3);
 
-        final List<Integer> out = new ArrayList<Integer>();
+        final List<Integer> out = new ArrayList<>();
 
         list.forEachWhile(2, new BiPredicate<Integer, Integer>() {
             @Override
@@ -215,13 +219,13 @@ public class MiscUtilTest extends RxJavaTest {
 
     @Test
     public void appendOnlyLinkedArrayListForEachWhileBiExact() throws Throwable {
-        AppendOnlyLinkedArrayList<Integer> list = new AppendOnlyLinkedArrayList<Integer>(3);
+        AppendOnlyLinkedArrayList<Integer> list = new AppendOnlyLinkedArrayList<>(3);
 
         list.add(1);
         list.add(2);
         list.add(3);
 
-        final List<Integer> out = new ArrayList<Integer>();
+        final List<Integer> out = new ArrayList<>();
 
         list.forEachWhile(2, new BiPredicate<Integer, Integer>() {
             @Override
@@ -236,13 +240,13 @@ public class MiscUtilTest extends RxJavaTest {
 
     @Test
     public void appendOnlyLinkedArrayListForEachWhileBiAll() throws Throwable {
-        AppendOnlyLinkedArrayList<Integer> list = new AppendOnlyLinkedArrayList<Integer>(2);
+        AppendOnlyLinkedArrayList<Integer> list = new AppendOnlyLinkedArrayList<>(2);
 
         list.add(1);
         list.add(2);
         list.add(3);
 
-        final List<Integer> out = new ArrayList<Integer>();
+        final List<Integer> out = new ArrayList<>();
 
         list.forEachWhile(3, new BiPredicate<Integer, Integer>() {
             @Override

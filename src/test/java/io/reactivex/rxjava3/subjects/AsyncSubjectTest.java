@@ -24,7 +24,7 @@ import org.junit.Test;
 import org.mockito.*;
 
 import io.reactivex.rxjava3.core.Observer;
-import io.reactivex.rxjava3.disposables.*;
+import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.exceptions.TestException;
 import io.reactivex.rxjava3.functions.Consumer;
 import io.reactivex.rxjava3.internal.fuseable.QueueFuseable;
@@ -112,6 +112,7 @@ public class AsyncSubjectTest extends SubjectTest<Integer> {
     }
 
     @Test
+    @SuppressUndeliverable
     public void error() {
         AsyncSubject<String> subject = AsyncSubject.create();
 
@@ -136,7 +137,7 @@ public class AsyncSubjectTest extends SubjectTest<Integer> {
         AsyncSubject<String> subject = AsyncSubject.create();
 
         Observer<String> observer = TestHelper.mockObserver();
-        TestObserver<String> to = new TestObserver<String>(observer);
+        TestObserver<String> to = new TestObserver<>(observer);
         subject.subscribe(to);
 
         subject.onNext("one");
@@ -185,7 +186,7 @@ public class AsyncSubjectTest extends SubjectTest<Integer> {
          */
         for (int i = 0; i < 50; i++) {
             final AsyncSubject<String> subject = AsyncSubject.create();
-            final AtomicReference<String> value1 = new AtomicReference<String>();
+            final AtomicReference<String> value1 = new AtomicReference<>();
 
             subject.subscribe(new Consumer<String>() {
 
@@ -243,7 +244,7 @@ public class AsyncSubjectTest extends SubjectTest<Integer> {
     private static class SubjectSubscriberThread extends Thread {
 
         private final AsyncSubject<String> subject;
-        private final AtomicReference<String> value = new AtomicReference<String>();
+        private final AtomicReference<String> value = new AtomicReference<>();
 
         SubjectSubscriberThread(AsyncSubject<String> subject) {
             this.subject = subject;
@@ -327,7 +328,7 @@ public class AsyncSubjectTest extends SubjectTest<Integer> {
 
     @Test
     public void fusionLive() {
-        AsyncSubject<Integer> ap = new AsyncSubject<Integer>();
+        AsyncSubject<Integer> ap = new AsyncSubject<>();
 
         TestObserverEx<Integer> to = ap.to(TestHelper.<Integer>testConsumer(false, QueueFuseable.ANY));
 
@@ -347,7 +348,7 @@ public class AsyncSubjectTest extends SubjectTest<Integer> {
 
     @Test
     public void fusionOfflie() {
-        AsyncSubject<Integer> ap = new AsyncSubject<Integer>();
+        AsyncSubject<Integer> ap = new AsyncSubject<>();
         ap.onNext(1);
         ap.onComplete();
 
@@ -362,14 +363,14 @@ public class AsyncSubjectTest extends SubjectTest<Integer> {
     public void onSubscribeAfterDone() {
         AsyncSubject<Object> p = AsyncSubject.create();
 
-        Disposable bs = Disposables.empty();
+        Disposable bs = Disposable.empty();
         p.onSubscribe(bs);
 
         assertFalse(bs.isDisposed());
 
         p.onComplete();
 
-        bs = Disposables.empty();
+        bs = Disposable.empty();
         p.onSubscribe(bs);
 
         assertTrue(bs.isDisposed());
@@ -418,6 +419,7 @@ public class AsyncSubjectTest extends SubjectTest<Integer> {
     }
 
     @Test
+    @SuppressUndeliverable
     public void onErrorCancelRace() {
 
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
@@ -455,7 +457,7 @@ public class AsyncSubjectTest extends SubjectTest<Integer> {
     public void onNextCrossCancel() {
         AsyncSubject<Object> p = AsyncSubject.create();
 
-        final TestObserver<Object> to2 = new TestObserver<Object>();
+        final TestObserver<Object> to2 = new TestObserver<>();
         TestObserver<Object> to1 = new TestObserver<Object>() {
             @Override
             public void onNext(Object t) {
@@ -475,10 +477,11 @@ public class AsyncSubjectTest extends SubjectTest<Integer> {
     }
 
     @Test
+    @SuppressUndeliverable
     public void onErrorCrossCancel() {
         AsyncSubject<Object> p = AsyncSubject.create();
 
-        final TestObserver<Object> to2 = new TestObserver<Object>();
+        final TestObserver<Object> to2 = new TestObserver<>();
         TestObserver<Object> to1 = new TestObserver<Object>() {
             @Override
             public void onError(Throwable t) {
@@ -500,7 +503,7 @@ public class AsyncSubjectTest extends SubjectTest<Integer> {
     public void onCompleteCrossCancel() {
         AsyncSubject<Object> p = AsyncSubject.create();
 
-        final TestObserver<Object> to2 = new TestObserver<Object>();
+        final TestObserver<Object> to2 = new TestObserver<>();
         TestObserver<Object> to1 = new TestObserver<Object>() {
             @Override
             public void onComplete() {
@@ -516,5 +519,10 @@ public class AsyncSubjectTest extends SubjectTest<Integer> {
 
         to1.assertResult();
         to2.assertEmpty();
+    }
+
+    @Test
+    public void dispose() {
+        TestHelper.checkDisposed(AsyncSubject.create());
     }
 }

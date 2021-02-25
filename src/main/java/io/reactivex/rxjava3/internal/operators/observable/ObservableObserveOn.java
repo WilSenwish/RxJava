@@ -42,7 +42,7 @@ public final class ObservableObserveOn<T> extends AbstractObservableWithUpstream
         } else {
             Scheduler.Worker w = scheduler.createWorker();
 
-            source.subscribe(new ObserveOnObserver<T>(observer, w, delayError, bufferSize));
+            source.subscribe(new ObserveOnObserver<>(observer, w, delayError, bufferSize));
         }
     }
 
@@ -101,7 +101,7 @@ public final class ObservableObserveOn<T> extends AbstractObservableWithUpstream
                     }
                 }
 
-                queue = new SpscLinkedArrayQueue<T>(bufferSize);
+                queue = new SpscLinkedArrayQueue<>(bufferSize);
 
                 downstream.onSubscribe(this);
             }
@@ -145,7 +145,7 @@ public final class ObservableObserveOn<T> extends AbstractObservableWithUpstream
                 disposed = true;
                 upstream.dispose();
                 worker.dispose();
-                if (getAndIncrement() == 0) {
+                if (!outputFused && getAndIncrement() == 0) {
                     queue.clear();
                 }
             }

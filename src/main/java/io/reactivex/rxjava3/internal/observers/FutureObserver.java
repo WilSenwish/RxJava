@@ -19,6 +19,7 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
+import io.reactivex.rxjava3.annotations.NonNull;
 import io.reactivex.rxjava3.core.Observer;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.internal.disposables.DisposableHelper;
@@ -41,7 +42,7 @@ implements Observer<T>, Future<T>, Disposable {
 
     public FutureObserver() {
         super(1);
-        this.upstream = new AtomicReference<Disposable>();
+        this.upstream = new AtomicReference<>();
     }
 
     @Override
@@ -90,7 +91,7 @@ implements Observer<T>, Future<T>, Disposable {
     }
 
     @Override
-    public T get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+    public T get(long timeout, @NonNull TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
         if (getCount() != 0) {
             BlockingHelper.verifyNonBlocking();
             if (!await(timeout, unit)) {
@@ -127,22 +128,15 @@ implements Observer<T>, Future<T>, Disposable {
     @Override
     public void onError(Throwable t) {
         if (error == null) {
-            error = t;
-
-            for (;;) {
-                Disposable a = upstream.get();
-                if (a == this || a == DisposableHelper.DISPOSED) {
-                    RxJavaPlugins.onError(t);
-                    return;
-                }
-                if (upstream.compareAndSet(a, this)) {
-                    countDown();
-                    return;
-                }
+            Disposable a = upstream.get();
+            if (a != this && a != DisposableHelper.DISPOSED
+                    && upstream.compareAndSet(a, this)) {
+                error = t;
+                countDown();
+                return;
             }
-        } else {
-            RxJavaPlugins.onError(t);
         }
+        RxJavaPlugins.onError(t);
     }
 
     @Override
@@ -151,15 +145,12 @@ implements Observer<T>, Future<T>, Disposable {
             onError(new NoSuchElementException("The source is empty"));
             return;
         }
-        for (;;) {
-            Disposable a = upstream.get();
-            if (a == this || a == DisposableHelper.DISPOSED) {
-                return;
-            }
-            if (upstream.compareAndSet(a, this)) {
-                countDown();
-                return;
-            }
+        Disposable a = upstream.get();
+        if (a == this || a == DisposableHelper.DISPOSED) {
+            return;
+        }
+        if (upstream.compareAndSet(a, this)) {
+            countDown();
         }
     }
 

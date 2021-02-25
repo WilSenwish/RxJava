@@ -21,15 +21,15 @@ import java.util.List;
 import org.junit.Test;
 
 import io.reactivex.rxjava3.core.*;
-import io.reactivex.rxjava3.disposables.Disposables;
+import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.exceptions.TestException;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
+import io.reactivex.rxjava3.subjects.MaybeSubject;
 import io.reactivex.rxjava3.subscribers.TestSubscriber;
 import io.reactivex.rxjava3.testsupport.TestHelper;
 
 public class MaybeConcatArrayTest extends RxJavaTest {
 
-    @SuppressWarnings("unchecked")
     @Test
     public void cancel() {
         Maybe.concatArray(Maybe.just(1), Maybe.just(2))
@@ -38,7 +38,6 @@ public class MaybeConcatArrayTest extends RxJavaTest {
         .assertResult(1);
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void cancelDelayError() {
         Maybe.concatArrayDelayError(Maybe.just(1), Maybe.just(2))
@@ -47,7 +46,6 @@ public class MaybeConcatArrayTest extends RxJavaTest {
         .assertResult(1);
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void backpressure() {
         TestSubscriber<Integer> ts = Maybe.concatArray(Maybe.just(1), Maybe.just(2))
@@ -64,7 +62,6 @@ public class MaybeConcatArrayTest extends RxJavaTest {
         ts.assertResult(1, 2);
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void backpressureDelayError() {
         TestSubscriber<Integer> ts = Maybe.concatArrayDelayError(Maybe.just(1), Maybe.just(2))
@@ -81,7 +78,6 @@ public class MaybeConcatArrayTest extends RxJavaTest {
         ts.assertResult(1, 2);
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void requestCancelRace() {
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
@@ -106,7 +102,6 @@ public class MaybeConcatArrayTest extends RxJavaTest {
         }
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void requestCancelRaceDelayError() {
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
@@ -131,7 +126,6 @@ public class MaybeConcatArrayTest extends RxJavaTest {
         }
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void errorAfterTermination() {
         List<Throwable> errors = TestHelper.trackPluginErrors();
@@ -142,7 +136,7 @@ public class MaybeConcatArrayTest extends RxJavaTest {
             new Maybe<Integer>() {
                 @Override
                 protected void subscribeActual(MaybeObserver<? super Integer> observer) {
-                    observer.onSubscribe(Disposables.empty());
+                    observer.onSubscribe(Disposable.empty());
                     observer.onSuccess(2);
                     o[0] = observer;
                 }
@@ -158,7 +152,6 @@ public class MaybeConcatArrayTest extends RxJavaTest {
         }
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void noSubsequentSubscription() {
         final int[] calls = { 0 };
@@ -178,7 +171,6 @@ public class MaybeConcatArrayTest extends RxJavaTest {
         assertEquals(1, calls[0]);
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void noSubsequentSubscriptionDelayError() {
         final int[] calls = { 0 };
@@ -196,5 +188,80 @@ public class MaybeConcatArrayTest extends RxJavaTest {
         .assertResult(1);
 
         assertEquals(1, calls[0]);
+    }
+
+    @Test
+    public void badRequest() {
+        TestHelper.assertBadRequestReported(Maybe.concatArray(MaybeSubject.create(), MaybeSubject.create()));
+    }
+
+    @Test
+    public void badRequestDelayError() {
+        TestHelper.assertBadRequestReported(Maybe.concatArrayDelayError(MaybeSubject.create(), MaybeSubject.create()));
+    }
+
+    @Test
+    public void mixed() {
+        Maybe.concatArray(
+                Maybe.just(1),
+                Maybe.empty(),
+                Maybe.just(2),
+                Maybe.empty(),
+                Maybe.empty()
+        )
+        .test()
+        .assertResult(1, 2);
+    }
+
+    @Test
+    public void requestBeforeSuccess() {
+        MaybeSubject<Integer> ms = MaybeSubject.create();
+        TestSubscriber<Integer> ts = Maybe.concatArray(ms, ms)
+        .test();
+
+        ts.assertEmpty();
+
+        ms.onSuccess(1);
+
+        ts.assertResult(1, 1);
+    }
+
+    @Test
+    public void requestBeforeComplete() {
+        MaybeSubject<Integer> ms = MaybeSubject.create();
+        TestSubscriber<Integer> ts = Maybe.concatArray(ms, ms)
+        .test();
+
+        ts.assertEmpty();
+
+        ms.onComplete();
+
+        ts.assertResult();
+    }
+
+    @Test
+    public void requestBeforeSuccessDelayError() {
+        MaybeSubject<Integer> ms = MaybeSubject.create();
+        TestSubscriber<Integer> ts = Maybe.concatArrayDelayError(ms, ms)
+        .test();
+
+        ts.assertEmpty();
+
+        ms.onSuccess(1);
+
+        ts.assertResult(1, 1);
+    }
+
+    @Test
+    public void requestBeforeCompleteDelayError() {
+        MaybeSubject<Integer> ms = MaybeSubject.create();
+        TestSubscriber<Integer> ts = Maybe.concatArrayDelayError(ms, ms)
+        .test();
+
+        ts.assertEmpty();
+
+        ms.onComplete();
+
+        ts.assertResult();
     }
 }

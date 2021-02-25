@@ -32,6 +32,7 @@ import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.exceptions.*;
 import io.reactivex.rxjava3.functions.*;
 import io.reactivex.rxjava3.internal.functions.Functions;
+import io.reactivex.rxjava3.internal.operators.flowable.FlowableTimeout.TimeoutConsumer;
 import io.reactivex.rxjava3.internal.subscriptions.BooleanSubscription;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 import io.reactivex.rxjava3.processors.*;
@@ -329,7 +330,7 @@ public class FlowableTimeoutWithSelectorTest extends RxJavaTest {
 
         }).when(subscriber).onComplete();
 
-        final TestSubscriber<Integer> ts = new TestSubscriber<Integer>(subscriber);
+        final TestSubscriber<Integer> ts = new TestSubscriber<>(subscriber);
 
         new Thread(new Runnable() {
 
@@ -893,5 +894,14 @@ public class FlowableTimeoutWithSelectorTest extends RxJavaTest {
         } finally {
             RxJavaPlugins.reset();
         }
+    }
+
+    @Test
+    public void timeoutConsumerIsDisposed() {
+        TimeoutConsumer consumer = new TimeoutConsumer(0, null);
+
+        assertFalse(consumer.isDisposed());
+        consumer.dispose();
+        assertTrue(consumer.isDisposed());
     }
 }

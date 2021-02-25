@@ -22,12 +22,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Test;
 
+import io.reactivex.rxjava3.annotations.NonNull;
 import io.reactivex.rxjava3.core.*;
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.Observer;
-import io.reactivex.rxjava3.disposables.Disposables;
+import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.exceptions.*;
 import io.reactivex.rxjava3.functions.*;
+import io.reactivex.rxjava3.internal.disposables.EmptyDisposable;
 import io.reactivex.rxjava3.internal.functions.Functions;
 import io.reactivex.rxjava3.internal.schedulers.ImmediateThinScheduler;
 import io.reactivex.rxjava3.observers.*;
@@ -367,7 +369,7 @@ public class ObservableConcatMapSchedulerTest {
             if (i % 1000 == 0) {
                 System.out.println("concatMapRangeAsyncLoop > " + i);
             }
-            TestObserverEx<Integer> to = new TestObserverEx<Integer>();
+            TestObserverEx<Integer> to = new TestObserverEx<>();
             Observable.range(0, 1000)
             .concatMap(new Function<Integer, Observable<Integer>>() {
                 @Override
@@ -663,7 +665,7 @@ public class ObservableConcatMapSchedulerTest {
             @Override
             protected void subscribeActual(Observer<? super Integer> o) {
                 ts0[0] = o;
-                o.onSubscribe(Disposables.empty());
+                o.onSubscribe(Disposable.empty());
                 o.onError(new TestException("First"));
             }
         }), 2, ImmediateThinScheduler.INSTANCE)
@@ -689,7 +691,7 @@ public class ObservableConcatMapSchedulerTest {
             @Override
             protected void subscribeActual(Observer<? super Integer> o) {
                 ts0[0] = o;
-                o.onSubscribe(Disposables.empty());
+                o.onSubscribe(Disposable.empty());
                 o.onError(new TestException("First"));
             }
         }), true, 2, ImmediateThinScheduler.INSTANCE)
@@ -1048,5 +1050,71 @@ public class ObservableConcatMapSchedulerTest {
                 }, true, 2, ImmediateThinScheduler.INSTANCE);
             }
         });
+    }
+
+    @Test
+    public void fusionRejected() {
+        TestObserverEx<Object> to = new TestObserverEx<>();
+
+        TestHelper.rejectObservableFusion()
+        .concatMap(v -> Observable.never(), 2, ImmediateThinScheduler.INSTANCE)
+        .subscribe(to);
+    }
+
+    @Test
+    public void fusionRejectedDelayErrorr() {
+        TestObserverEx<Object> to = new TestObserverEx<>();
+
+        TestHelper.rejectObservableFusion()
+        .concatMapDelayError(v -> Observable.never(), true, 2, ImmediateThinScheduler.INSTANCE)
+        .subscribe(to);
+    }
+
+    @Test
+    public void scalarInnerJustDisposeDelayError() {
+        TestObserver<Integer> to = new TestObserver<>();
+
+        Observable.just(1)
+        .hide()
+        .concatMapDelayError(v -> Observable.fromCallable(() -> {
+            to.dispose();
+            return 1;
+        }), true, 2, ImmediateThinScheduler.INSTANCE)
+        .subscribe(to);
+
+        to.assertEmpty();
+    }
+
+    static final class EmptyDisposingObservable extends Observable<Object>
+    implements Supplier<Object> {
+        final TestObserver<Object> to;
+        EmptyDisposingObservable(TestObserver<Object> to) {
+            this.to = to;
+        }
+
+        @Override
+        protected void subscribeActual(@NonNull Observer<? super @NonNull Object> observer) {
+            EmptyDisposable.complete(observer);
+        }
+
+        @Override
+        public @NonNull Object get() throws Throwable {
+            to.dispose();
+            return null;
+        }
+    }
+
+    @Test
+    public void scalarInnerEmptyDisposeDelayError() {
+        TestObserver<Object> to = new TestObserver<>();
+
+        Observable.just(1)
+        .hide()
+        .concatMapDelayError(v -> new EmptyDisposingObservable(to),
+                true, 2, ImmediateThinScheduler.INSTANCE
+        )
+        .subscribe(to);
+
+        to.assertEmpty();
     }
 }

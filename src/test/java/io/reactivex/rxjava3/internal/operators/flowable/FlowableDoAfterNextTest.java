@@ -30,7 +30,7 @@ import io.reactivex.rxjava3.testsupport.*;
 
 public class FlowableDoAfterNextTest extends RxJavaTest {
 
-    final List<Integer> values = new ArrayList<Integer>();
+    final List<Integer> values = new ArrayList<>();
 
     final Consumer<Integer> afterNext = new Consumer<Integer>() {
         @Override
@@ -131,11 +131,6 @@ public class FlowableDoAfterNextTest extends RxJavaTest {
         .assertResult(1, 2, 3, 4, 5);
 
         assertEquals(Arrays.asList(-1, -2, -3, -4, -5), values);
-    }
-
-    @Test(expected = NullPointerException.class)
-    public void consumerNull() {
-        Flowable.just(1).doAfterNext(null);
     }
 
     @Test

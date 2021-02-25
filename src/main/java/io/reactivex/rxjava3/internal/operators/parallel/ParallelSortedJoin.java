@@ -46,7 +46,7 @@ public final class ParallelSortedJoin<T> extends Flowable<T> {
 
     @Override
     protected void subscribeActual(Subscriber<? super T> s) {
-        SortedJoinSubscription<T> parent = new SortedJoinSubscription<T>(s, source.parallelism(), comparator);
+        SortedJoinSubscription<T> parent = new SortedJoinSubscription<>(s, source.parallelism(), comparator);
         s.onSubscribe(parent);
 
         source.subscribe(parent.subscribers);
@@ -74,7 +74,7 @@ public final class ParallelSortedJoin<T> extends Flowable<T> {
 
         final AtomicInteger remaining = new AtomicInteger();
 
-        final AtomicReference<Throwable> error = new AtomicReference<Throwable>();
+        final AtomicReference<Throwable> error = new AtomicReference<>();
 
         @SuppressWarnings("unchecked")
         SortedJoinSubscription(Subscriber<? super T> actual, int n, Comparator<? super T> comparator) {
@@ -84,7 +84,7 @@ public final class ParallelSortedJoin<T> extends Flowable<T> {
             SortedJoinInnerSubscriber<T>[] s = new SortedJoinInnerSubscriber[n];
 
             for (int i = 0; i < n; i++) {
-                s[i] = new SortedJoinInnerSubscriber<T>(this, i);
+                s[i] = new SortedJoinInnerSubscriber<>(this, i);
             }
             this.subscribers = s;
             this.lists = new List[n];
@@ -215,48 +215,41 @@ public final class ParallelSortedJoin<T> extends Flowable<T> {
                     e++;
                 }
 
-                if (e == r) {
-                    if (cancelled) {
-                        Arrays.fill(lists, null);
-                        return;
-                    }
-
-                    Throwable ex = error.get();
-                    if (ex != null) {
-                        cancelAll();
-                        Arrays.fill(lists, null);
-                        a.onError(ex);
-                        return;
-                    }
-
-                    boolean empty = true;
-
-                    for (int i = 0; i < n; i++) {
-                        if (indexes[i] != lists[i].size()) {
-                            empty = false;
-                            break;
-                        }
-                    }
-
-                    if (empty) {
-                        Arrays.fill(lists, null);
-                        a.onComplete();
-                        return;
-                    }
+                if (cancelled) {
+                    Arrays.fill(lists, null);
+                    return;
                 }
 
-                if (e != 0 && r != Long.MAX_VALUE) {
-                    requested.addAndGet(-e);
+                Throwable ex = error.get();
+                if (ex != null) {
+                    cancelAll();
+                    Arrays.fill(lists, null);
+                    a.onError(ex);
+                    return;
                 }
 
-                int w = get();
-                if (w == missed) {
-                    missed = addAndGet(-missed);
-                    if (missed == 0) {
+                boolean empty = true;
+
+                for (int i = 0; i < n; i++) {
+                    if (indexes[i] != lists[i].size()) {
+                        empty = false;
                         break;
                     }
-                } else {
-                    missed = w;
+                }
+
+                if (empty) {
+                    Arrays.fill(lists, null);
+                    a.onComplete();
+                    return;
+                }
+
+                if (e != 0) {
+                    BackpressureHelper.produced(requested, e);
+                }
+
+                missed = addAndGet(-missed);
+                if (missed == 0) {
+                    break;
                 }
             }
         }

@@ -25,7 +25,7 @@ import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 /**
  * Returns an Iterable that blocks until the Observable emits another item, then returns that item.
  * <p>
- * <img width="640" height="490" src="https://github.com/ReactiveX/RxJava/wiki/images/rx-operators/B.next.png" alt="">
+ * <img width="640" height="490" src="https://github.com/ReactiveX/RxJava/wiki/images/rx-operators/B.next.v3.png" alt="">
  * 
  * @param <T> the value type
  */
@@ -39,8 +39,8 @@ public final class BlockingObservableNext<T> implements Iterable<T> {
 
     @Override
     public Iterator<T> iterator() {
-        NextObserver<T> nextObserver = new NextObserver<T>();
-        return new NextIterator<T>(source, nextObserver);
+        NextObserver<T> nextObserver = new NextObserver<>();
+        return new NextIterator<>(source, nextObserver);
     }
 
     // test needs to access the observer.waiting flag
@@ -80,7 +80,7 @@ public final class BlockingObservableNext<T> implements Iterable<T> {
                 started = true;
                 // if not started, start now
                 observer.setWaiting();
-                new ObservableMaterialize<T>(items).subscribe(observer);
+                new ObservableMaterialize<>(items).subscribe(observer);
             }
 
             Notification<T> nextNotification;
@@ -130,7 +130,7 @@ public final class BlockingObservableNext<T> implements Iterable<T> {
     }
 
     static final class NextObserver<T> extends DisposableObserver<Notification<T>> {
-        private final BlockingQueue<Notification<T>> buf = new ArrayBlockingQueue<Notification<T>>(1);
+        private final BlockingQueue<Notification<T>> buf = new ArrayBlockingQueue<>(1);
         final AtomicInteger waiting = new AtomicInteger();
 
         @Override

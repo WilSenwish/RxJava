@@ -21,7 +21,7 @@ import org.reactivestreams.*;
 
 import io.reactivex.rxjava3.annotations.Nullable;
 import io.reactivex.rxjava3.core.*;
-import io.reactivex.rxjava3.exceptions.Exceptions;
+import io.reactivex.rxjava3.exceptions.*;
 import io.reactivex.rxjava3.flowables.GroupedFlowable;
 import io.reactivex.rxjava3.functions.*;
 import io.reactivex.rxjava3.internal.queue.SpscLinkedArrayQueue;
@@ -56,10 +56,10 @@ public final class FlowableGroupBy<T, K, V> extends AbstractFlowableWithUpstream
         try {
             if (mapFactory == null) {
                 evictedGroups = null;
-                groups = new ConcurrentHashMap<Object, GroupedUnicast<K, V>>();
+                groups = new ConcurrentHashMap<>();
             } else {
-                evictedGroups = new ConcurrentLinkedQueue<GroupedUnicast<K, V>>();
-                Consumer<Object> evictionAction = (Consumer) new EvictionAction<K, V>(evictedGroups);
+                evictedGroups = new ConcurrentLinkedQueue<>();
+                Consumer<Object> evictionAction = (Consumer) new EvictionAction<>(evictedGroups);
                 groups = (Map) mapFactory.apply(evictionAction);
             }
         } catch (Throwable e) {
@@ -69,13 +69,13 @@ public final class FlowableGroupBy<T, K, V> extends AbstractFlowableWithUpstream
             return;
         }
         GroupBySubscriber<T, K, V> subscriber =
-                new GroupBySubscriber<T, K, V>(s, keySelector, valueSelector, bufferSize, delayError, groups, evictedGroups);
+                new GroupBySubscriber<>(s, keySelector, valueSelector, bufferSize, delayError, groups, evictedGroups);
         source.subscribe(subscriber);
     }
 
     public static final class GroupBySubscriber<T, K, V>
-    extends BasicIntQueueSubscription<GroupedFlowable<K, V>>
-    implements FlowableSubscriber<T> {
+    extends AtomicLong
+    implements FlowableSubscriber<T>, Subscription {
 
         private static final long serialVersionUID = -3688291656102519502L;
 
@@ -83,9 +83,9 @@ public final class FlowableGroupBy<T, K, V> extends AbstractFlowableWithUpstream
         final Function<? super T, ? extends K> keySelector;
         final Function<? super T, ? extends V> valueSelector;
         final int bufferSize;
+        final int limit;
         final boolean delayError;
         final Map<Object, GroupedUnicast<K, V>> groups;
-        final SpscLinkedArrayQueue<GroupedFlowable<K, V>> queue;
         final Queue<GroupedUnicast<K, V>> evictedGroups;
 
         static final Object NULL_KEY = new Object();
@@ -94,15 +94,13 @@ public final class FlowableGroupBy<T, K, V> extends AbstractFlowableWithUpstream
 
         final AtomicBoolean cancelled = new AtomicBoolean();
 
-        final AtomicLong requested = new AtomicLong();
+        long emittedGroups;
 
         final AtomicInteger groupCount = new AtomicInteger(1);
 
-        Throwable error;
-        volatile boolean finished;
-        boolean done;
+        final AtomicLong groupConsumed = new AtomicLong();
 
-        boolean outputFused;
+        boolean done;
 
         public GroupBySubscriber(Subscriber<? super GroupedFlowable<K, V>> actual, Function<? super T, ? extends K> keySelector,
                 Function<? super T, ? extends V> valueSelector, int bufferSize, boolean delayError,
@@ -111,10 +109,10 @@ public final class FlowableGroupBy<T, K, V> extends AbstractFlowableWithUpstream
             this.keySelector = keySelector;
             this.valueSelector = valueSelector;
             this.bufferSize = bufferSize;
+            this.limit = bufferSize - (bufferSize >> 2);
             this.delayError = delayError;
             this.groups = groups;
             this.evictedGroups = evictedGroups;
-            this.queue = new SpscLinkedArrayQueue<GroupedFlowable<K, V>>(bufferSize);
         }
 
         @Override
@@ -131,8 +129,6 @@ public final class FlowableGroupBy<T, K, V> extends AbstractFlowableWithUpstream
             if (done) {
                 return;
             }
-
-            final SpscLinkedArrayQueue<GroupedFlowable<K, V>> q = this.queue;
 
             K key;
             try {
@@ -168,6 +164,16 @@ public final class FlowableGroupBy<T, K, V> extends AbstractFlowableWithUpstream
             } catch (Throwable ex) {
                 Exceptions.throwIfFatal(ex);
                 upstream.cancel();
+                if (newGroup) {
+                    if (emittedGroups != get()) {
+                        downstream.onNext(group);
+                    } else {
+                        MissingBackpressureException mbe = new MissingBackpressureException(groupHangWarning(emittedGroups));
+                        mbe.initCause(ex);
+                        onError(mbe);
+                        return;
+                    }
+                }
                 onError(ex);
                 return;
             }
@@ -177,16 +183,24 @@ public final class FlowableGroupBy<T, K, V> extends AbstractFlowableWithUpstream
             completeEvictions();
 
             if (newGroup) {
-                q.offer(group);
-                drain();
+                if (emittedGroups != get()) {
+                    emittedGroups++;
+                    downstream.onNext(group);
+                    if (group.state.tryAbandon()) {
+                        cancel(key);
+                        group.onComplete();
 
-                if (group.state.tryAbandon()) {
-                    cancel(key);
-                    group.onComplete();
-
-                    upstream.request(1);
+                        requestGroup(1);
+                    }
+                } else {
+                    upstream.cancel();
+                    onError(new MissingBackpressureException(groupHangWarning(emittedGroups)));
                 }
             }
+        }
+
+        static String groupHangWarning(long n) {
+            return "Unable to emit a new group (#" + n + ") due to lack of requests. Please make sure the downstream can always accept a new group as well as each group is consumed in order for the whole operator to be able to proceed.";
         }
 
         @Override
@@ -200,12 +214,8 @@ public final class FlowableGroupBy<T, K, V> extends AbstractFlowableWithUpstream
                 g.onError(t);
             }
             groups.clear();
-            if (evictedGroups != null) {
-                evictedGroups.clear();
-            }
-            error = t;
-            finished = true;
-            drain();
+            completeEvictions();
+            downstream.onError(t);
         }
 
         @Override
@@ -214,21 +224,19 @@ public final class FlowableGroupBy<T, K, V> extends AbstractFlowableWithUpstream
                 for (GroupedUnicast<K, V> g : groups.values()) {
                     g.onComplete();
                 }
+
                 groups.clear();
-                if (evictedGroups != null) {
-                    evictedGroups.clear();
-                }
+                completeEvictions();
+
                 done = true;
-                finished = true;
-                drain();
+                downstream.onComplete();
             }
         }
 
         @Override
         public void request(long n) {
             if (SubscriptionHelper.validate(n)) {
-                BackpressureHelper.add(requested, n);
-                drain();
+                BackpressureHelper.add(this, n);
             }
         }
 
@@ -249,8 +257,9 @@ public final class FlowableGroupBy<T, K, V> extends AbstractFlowableWithUpstream
                 int count = 0;
                 GroupedUnicast<K, V> evictedGroup;
                 while ((evictedGroup = evictedGroups.poll()) != null) {
-                    evictedGroup.onComplete();
-                    count++;
+                    if (evictedGroup.state.tryComplete()) {
+                        count++;
+                    }
                 }
                 if (count != 0) {
                     groupCount.addAndGet(-count);
@@ -260,175 +269,42 @@ public final class FlowableGroupBy<T, K, V> extends AbstractFlowableWithUpstream
 
         public void cancel(K key) {
             Object mapKey = key != null ? key : NULL_KEY;
-            groups.remove(mapKey);
-            if (groupCount.decrementAndGet() == 0) {
-                upstream.cancel();
-
-                if (getAndIncrement() == 0) {
-                    queue.clear();
+            if (groups.remove(mapKey) != null) {
+                if (groupCount.decrementAndGet() == 0) {
+                    upstream.cancel();
                 }
             }
         }
 
-        void drain() {
-            if (getAndIncrement() != 0) {
-                return;
-            }
-
-            if (outputFused) {
-                drainFused();
-            } else {
-                drainNormal();
-            }
-        }
-
-        void drainFused() {
-            int missed = 1;
-
-            final SpscLinkedArrayQueue<GroupedFlowable<K, V>> q = this.queue;
-            final Subscriber<? super GroupedFlowable<K, V>> a = this.downstream;
-
+        void requestGroup(long n) {
+            // lots of atomics, save local
+            AtomicLong groupConsumed = this.groupConsumed;
+            int limit = this.limit;
+            // Concurrent groups can request at once, a CAS loop is needed
             for (;;) {
-                if (cancelled.get()) {
-                    q.clear();
-                    return;
-                }
+                long currentConsumed = groupConsumed.get();
+                long newConsumed = BackpressureHelper.addCap(currentConsumed, n);
+                // Accumulate the consumed amounts and atomically update the total
+                if (groupConsumed.compareAndSet(currentConsumed, newConsumed)) {
+                    // if successful, let's see if the prefetch limit has been surpassed
+                    for (;;) {
+                        if (newConsumed < limit) {
+                            // no further actions to be taken
+                            return;
+                        }
 
-                boolean d = finished;
-
-                if (d && !delayError) {
-                    Throwable ex = error;
-                    if (ex != null) {
-                        q.clear();
-                        a.onError(ex);
-                        return;
-                    }
-                }
-
-                a.onNext(null);
-
-                if (d) {
-                    Throwable ex = error;
-                    if (ex != null) {
-                        a.onError(ex);
-                    } else {
-                        a.onComplete();
-                    }
-                    return;
-                }
-
-                missed = addAndGet(-missed);
-                if (missed == 0) {
-                    return;
-                }
-            }
-        }
-
-        void drainNormal() {
-            int missed = 1;
-
-            final SpscLinkedArrayQueue<GroupedFlowable<K, V>> q = this.queue;
-            final Subscriber<? super GroupedFlowable<K, V>> a = this.downstream;
-
-            for (;;) {
-
-                long r = requested.get();
-                long e = 0L;
-
-                while (e != r) {
-                    boolean d = finished;
-
-                    GroupedFlowable<K, V> t = q.poll();
-
-                    boolean empty = t == null;
-
-                    if (checkTerminated(d, empty, a, q)) {
-                        return;
-                    }
-
-                    if (empty) {
-                        break;
-                    }
-
-                    a.onNext(t);
-
-                    e++;
-                }
-
-                if (e == r && checkTerminated(finished, q.isEmpty(), a, q)) {
-                    return;
-                }
-
-                if (e != 0L) {
-                    if (r != Long.MAX_VALUE) {
-                        requested.addAndGet(-e);
-                    }
-                    upstream.request(e);
-                }
-
-                missed = addAndGet(-missed);
-                if (missed == 0) {
-                    break;
-                }
-            }
-        }
-
-        boolean checkTerminated(boolean d, boolean empty, Subscriber<?> a, SpscLinkedArrayQueue<?> q) {
-            if (cancelled.get()) {
-                q.clear();
-                return true;
-            }
-
-            if (delayError) {
-                if (d && empty) {
-                    Throwable ex = error;
-                    if (ex != null) {
-                        a.onError(ex);
-                    } else {
-                        a.onComplete();
-                    }
-                    return true;
-                }
-            } else {
-                if (d) {
-                    Throwable ex = error;
-                    if (ex != null) {
-                        q.clear();
-                        a.onError(ex);
-                        return true;
-                    } else if (empty) {
-                        a.onComplete();
-                        return true;
+                        // Yes, remove one limit from total consumed
+                        long newConsumedAfterLimit = newConsumed - limit;
+                        // Only one thread should subtract
+                        if (groupConsumed.compareAndSet(newConsumed, newConsumedAfterLimit)) {
+                            // Then request up to limit
+                            upstream.request(limit);
+                        }
+                        // We don't quit but loop to see if we are still above the prefetch limit
+                        newConsumed = groupConsumed.get();
                     }
                 }
             }
-
-            return false;
-        }
-
-        @Override
-        public int requestFusion(int mode) {
-            if ((mode & ASYNC) != 0) {
-                outputFused = true;
-                return ASYNC;
-            }
-            return NONE;
-        }
-
-        @Nullable
-        @Override
-        public GroupedFlowable<K, V> poll() {
-            return queue.poll();
-        }
-
-        @Override
-        public void clear() {
-            queue.clear();
-        }
-
-        @Override
-        public boolean isEmpty() {
-            return queue.isEmpty();
         }
     }
 
@@ -451,8 +327,8 @@ public final class FlowableGroupBy<T, K, V> extends AbstractFlowableWithUpstream
         final State<T, K> state;
 
         public static <T, K> GroupedUnicast<K, T> createWith(K key, int bufferSize, GroupBySubscriber<?, K, T> parent, boolean delayError) {
-            State<T, K> state = new State<T, K>(bufferSize, parent, key, delayError);
-            return new GroupedUnicast<K, T>(key, state);
+            State<T, K> state = new State<>(bufferSize, parent, key, delayError);
+            return new GroupedUnicast<>(key, state);
         }
 
         protected GroupedUnicast(K key, State<T, K> state) {
@@ -494,10 +370,9 @@ public final class FlowableGroupBy<T, K, V> extends AbstractFlowableWithUpstream
 
         final AtomicBoolean cancelled = new AtomicBoolean();
 
-        final AtomicReference<Subscriber<? super T>> actual = new AtomicReference<Subscriber<? super T>>();
+        final AtomicReference<Subscriber<? super T>> actual = new AtomicReference<>();
 
         boolean outputFused;
-
         int produced;
 
         final AtomicInteger once = new AtomicInteger();
@@ -507,8 +382,10 @@ public final class FlowableGroupBy<T, K, V> extends AbstractFlowableWithUpstream
         static final int ABANDONED = 2;
         static final int ABANDONED_HAS_SUBSCRIBER = ABANDONED | HAS_SUBSCRIBER;
 
+        final AtomicBoolean evictOnce = new AtomicBoolean();
+
         State(int bufferSize, GroupBySubscriber<?, K, T> parent, K key, boolean delayError) {
-            this.queue = new SpscLinkedArrayQueue<T>(bufferSize);
+            this.queue = new SpscLinkedArrayQueue<>(bufferSize);
             this.parent = parent;
             this.key = key;
             this.delayError = delayError;
@@ -526,6 +403,7 @@ public final class FlowableGroupBy<T, K, V> extends AbstractFlowableWithUpstream
         public void cancel() {
             if (cancelled.compareAndSet(false, true)) {
                 cancelParent();
+                drain();
             }
         }
 
@@ -567,9 +445,18 @@ public final class FlowableGroupBy<T, K, V> extends AbstractFlowableWithUpstream
             drain();
         }
 
+        boolean tryComplete() {
+            boolean canEvict = evictOnce.compareAndSet(false, true);
+            done = true;
+            drain();
+            return canEvict;
+        }
+
         void cancelParent() {
             if ((once.get() & ABANDONED) == 0) {
-                parent.cancel(key);
+                if (evictOnce.compareAndSet(false, true)) {
+                    parent.cancel(key);
+                }
             }
         }
 
@@ -597,7 +484,6 @@ public final class FlowableGroupBy<T, K, V> extends AbstractFlowableWithUpstream
             for (;;) {
                 if (a != null) {
                     if (cancelled.get()) {
-                        q.clear();
                         return;
                     }
 
@@ -642,39 +528,43 @@ public final class FlowableGroupBy<T, K, V> extends AbstractFlowableWithUpstream
             final SpscLinkedArrayQueue<T> q = queue;
             final boolean delayError = this.delayError;
             Subscriber<? super T> a = actual.get();
+            final AtomicBoolean cancelled = this.cancelled;
+
+            outer:
             for (;;) {
-                if (a != null) {
-                    long r = requested.get();
-                    long e = 0;
+                if (cancelled.get()) {
+                    cleanupQueue(0, false);
+                } else {
+                    if (a != null) {
+                        long r = requested.get();
+                        long e = 0;
 
-                    while (e != r) {
-                        boolean d = done;
-                        T v = q.poll();
-                        boolean empty = v == null;
+                        while (e != r) {
+                            boolean d = done;
+                            T v = q.poll();
+                            boolean empty = v == null;
 
-                        if (checkTerminated(d, empty, a, delayError)) {
-                            return;
+                            if (checkTerminated(d, empty, a, delayError, e, !empty)) {
+                                continue outer;
+                            }
+
+                            if (empty) {
+                                break;
+                            }
+
+                            a.onNext(v);
+
+                            e++;
                         }
 
-                        if (empty) {
-                            break;
+                        if (e == r && checkTerminated(done, q.isEmpty(), a, delayError, e, false)) {
+                            continue outer;
                         }
 
-                        a.onNext(v);
-
-                        e++;
-                    }
-
-                    if (e == r && checkTerminated(done, q.isEmpty(), a, delayError)) {
-                        return;
-                    }
-
-                    if (e != 0L) {
-                        if (r != Long.MAX_VALUE) {
-                            requested.addAndGet(-e);
-                        }
-                        if ((once.get() & ABANDONED) == 0) {
-                            parent.upstream.request(e);
+                        if (e != 0L) {
+                            BackpressureHelper.produced(requested, e);
+                            // replenish based on this batch run
+                            requestParent(e);
                         }
                     }
                 }
@@ -689,20 +579,51 @@ public final class FlowableGroupBy<T, K, V> extends AbstractFlowableWithUpstream
             }
         }
 
-        boolean checkTerminated(boolean d, boolean empty, Subscriber<? super T> a, boolean delayError) {
+        void requestParent(long e) {
+            if ((once.get() & ABANDONED) == 0) {
+                parent.requestGroup(e);
+            }
+        }
+
+        void cleanupQueue(long emitted, boolean polled) {
+            // if this group is canceled, all accumulated emissions and
+            // remaining items in the queue should be requested
+            // so that other groups can proceed
+            while (queue.poll() != null) {
+                emitted++;
+            }
+
+            replenishParent(emitted, polled);
+        }
+
+        void replenishParent(long emitted, boolean polled) {
+            if (polled) {
+                emitted++;
+            }
+            if (emitted != 0L) {
+                requestParent(emitted);
+            }
+        }
+
+        boolean checkTerminated(boolean d, boolean empty, Subscriber<? super T> a,
+                boolean delayError, long emitted, boolean polled) {
             if (cancelled.get()) {
-                queue.clear();
+                cleanupQueue(emitted, polled);
                 return true;
             }
 
             if (d) {
                 if (delayError) {
                     if (empty) {
+                        cancelled.lazySet(true);
                         Throwable e = error;
                         if (e != null) {
                             a.onError(e);
                         } else {
                             a.onComplete();
+                            // completion doesn't mean the parent has completed
+                            // because of evicted groups
+                            replenishParent(emitted, polled);
                         }
                         return true;
                     }
@@ -710,11 +631,17 @@ public final class FlowableGroupBy<T, K, V> extends AbstractFlowableWithUpstream
                     Throwable e = error;
                     if (e != null) {
                         queue.clear();
+                        cancelled.lazySet(true);
                         a.onError(e);
                         return true;
                     } else
                     if (empty) {
+                        cancelled.lazySet(true);
                         a.onComplete();
+
+                        // completion doesn't mean the parent has completed
+                        // because of evicted groups
+                        replenishParent(emitted, polled);
                         return true;
                     }
                 }
@@ -725,11 +652,22 @@ public final class FlowableGroupBy<T, K, V> extends AbstractFlowableWithUpstream
 
         @Override
         public int requestFusion(int mode) {
+            // FIXME fusion mode causes hangs
+            /*
             if ((mode & ASYNC) != 0) {
                 outputFused = true;
                 return ASYNC;
             }
+            */
             return NONE;
+        }
+
+        void tryReplenish() {
+            int p = produced;
+            if (p != 0) {
+                produced = 0;
+                requestParent(p);
+            }
         }
 
         @Nullable
@@ -740,24 +678,28 @@ public final class FlowableGroupBy<T, K, V> extends AbstractFlowableWithUpstream
                 produced++;
                 return v;
             }
-            int p = produced;
-            if (p != 0) {
-                produced = 0;
-                if ((once.get() & ABANDONED) == 0) {
-                    parent.upstream.request(p);
-                }
-            }
+            tryReplenish();
             return null;
         }
 
         @Override
         public boolean isEmpty() {
-            return queue.isEmpty();
+            if (queue.isEmpty()) {
+                tryReplenish();
+                return true;
+            }
+            tryReplenish();
+            return false;
         }
 
         @Override
         public void clear() {
-            queue.clear();
+            SpscLinkedArrayQueue<T> q = queue;
+            // queue.clear() would drop submitted items and not replenish, possibly hanging other groups
+            while (q.poll() != null) {
+                produced++;
+            }
+            tryReplenish();
         }
     }
 }

@@ -13,6 +13,8 @@
 
 package io.reactivex.rxjava3.internal.schedulers;
 
+import static org.junit.Assert.fail;
+
 import java.util.List;
 
 import org.junit.Test;
@@ -35,7 +37,12 @@ public class ScheduledDirectPeriodicTaskTest extends RxJavaTest {
                 }
             });
 
-            task.run();
+            try {
+                task.run();
+                fail("Should have thrown!");
+            } catch (TestException expected) {
+                // expected
+            }
 
             TestHelper.assertUndeliverable(errors, 0, TestException.class);
         } finally {

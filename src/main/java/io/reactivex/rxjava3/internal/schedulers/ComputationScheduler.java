@@ -135,7 +135,7 @@ public final class ComputationScheduler extends Scheduler implements SchedulerMu
      */
     public ComputationScheduler(ThreadFactory threadFactory) {
         this.threadFactory = threadFactory;
-        this.pool = new AtomicReference<FixedSchedulerPool>(NONE);
+        this.pool = new AtomicReference<>(NONE);
         start();
     }
 
@@ -175,15 +175,9 @@ public final class ComputationScheduler extends Scheduler implements SchedulerMu
 
     @Override
     public void shutdown() {
-        for (;;) {
-            FixedSchedulerPool curr = pool.get();
-            if (curr == NONE) {
-                return;
-            }
-            if (pool.compareAndSet(curr, NONE)) {
-                curr.shutdown();
-                return;
-            }
+        FixedSchedulerPool curr = pool.getAndSet(NONE);
+        if (curr != NONE) {
+            curr.shutdown();
         }
     }
 

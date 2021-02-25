@@ -112,6 +112,7 @@ public class AsyncProcessorTest extends FlowableProcessorTest<Object> {
     }
 
     @Test
+    @SuppressUndeliverable
     public void error() {
         AsyncProcessor<String> processor = AsyncProcessor.create();
 
@@ -136,7 +137,7 @@ public class AsyncProcessorTest extends FlowableProcessorTest<Object> {
         AsyncProcessor<String> processor = AsyncProcessor.create();
 
         Subscriber<String> subscriber = TestHelper.mockSubscriber();
-        TestSubscriber<String> ts = new TestSubscriber<String>(subscriber);
+        TestSubscriber<String> ts = new TestSubscriber<>(subscriber);
         processor.subscribe(ts);
 
         processor.onNext("one");
@@ -185,7 +186,7 @@ public class AsyncProcessorTest extends FlowableProcessorTest<Object> {
          */
         for (int i = 0; i < 50; i++) {
             final AsyncProcessor<String> processor = AsyncProcessor.create();
-            final AtomicReference<String> value1 = new AtomicReference<String>();
+            final AtomicReference<String> value1 = new AtomicReference<>();
 
             processor.subscribe(new Consumer<String>() {
 
@@ -243,7 +244,7 @@ public class AsyncProcessorTest extends FlowableProcessorTest<Object> {
     private static class SubjectSubscriberThread extends Thread {
 
         private final AsyncProcessor<String> processor;
-        private final AtomicReference<String> value = new AtomicReference<String>();
+        private final AtomicReference<String> value = new AtomicReference<>();
 
         SubjectSubscriberThread(AsyncProcessor<String> processor) {
             this.processor = processor;
@@ -327,7 +328,7 @@ public class AsyncProcessorTest extends FlowableProcessorTest<Object> {
 
     @Test
     public void fusionLive() {
-        AsyncProcessor<Integer> ap = new AsyncProcessor<Integer>();
+        AsyncProcessor<Integer> ap = new AsyncProcessor<>();
 
         TestSubscriberEx<Integer> ts = new TestSubscriberEx<Integer>().setInitialFusionMode(QueueFuseable.ANY);
 
@@ -350,7 +351,7 @@ public class AsyncProcessorTest extends FlowableProcessorTest<Object> {
 
     @Test
     public void fusionOfflie() {
-        AsyncProcessor<Integer> ap = new AsyncProcessor<Integer>();
+        AsyncProcessor<Integer> ap = new AsyncProcessor<>();
         ap.onNext(1);
         ap.onComplete();
 
@@ -424,6 +425,7 @@ public class AsyncProcessorTest extends FlowableProcessorTest<Object> {
     }
 
     @Test
+    @SuppressUndeliverable
     public void onErrorCancelRace() {
 
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
@@ -461,7 +463,7 @@ public class AsyncProcessorTest extends FlowableProcessorTest<Object> {
     public void onNextCrossCancel() {
         AsyncProcessor<Object> p = AsyncProcessor.create();
 
-        final TestSubscriber<Object> ts2 = new TestSubscriber<Object>();
+        final TestSubscriber<Object> ts2 = new TestSubscriber<>();
         TestSubscriber<Object> ts1 = new TestSubscriber<Object>() {
             @Override
             public void onNext(Object t) {
@@ -481,10 +483,11 @@ public class AsyncProcessorTest extends FlowableProcessorTest<Object> {
     }
 
     @Test
+    @SuppressUndeliverable
     public void onErrorCrossCancel() {
         AsyncProcessor<Object> p = AsyncProcessor.create();
 
-        final TestSubscriber<Object> ts2 = new TestSubscriber<Object>();
+        final TestSubscriber<Object> ts2 = new TestSubscriber<>();
         TestSubscriber<Object> ts1 = new TestSubscriber<Object>() {
             @Override
             public void onError(Throwable t) {
@@ -506,7 +509,7 @@ public class AsyncProcessorTest extends FlowableProcessorTest<Object> {
     public void onCompleteCrossCancel() {
         AsyncProcessor<Object> p = AsyncProcessor.create();
 
-        final TestSubscriber<Object> ts2 = new TestSubscriber<Object>();
+        final TestSubscriber<Object> ts2 = new TestSubscriber<>();
         TestSubscriber<Object> ts1 = new TestSubscriber<Object>() {
             @Override
             public void onComplete() {
@@ -522,5 +525,10 @@ public class AsyncProcessorTest extends FlowableProcessorTest<Object> {
 
         ts1.assertResult();
         ts2.assertEmpty();
+    }
+
+    @Test
+    public void cancel() {
+        TestHelper.checkDisposed(AsyncProcessor.create());
     }
 }

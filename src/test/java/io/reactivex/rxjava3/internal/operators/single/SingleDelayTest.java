@@ -23,14 +23,14 @@ import org.junit.Test;
 import org.reactivestreams.Subscriber;
 
 import io.reactivex.rxjava3.core.*;
-import io.reactivex.rxjava3.disposables.Disposables;
+import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.exceptions.TestException;
 import io.reactivex.rxjava3.functions.*;
 import io.reactivex.rxjava3.internal.subscriptions.BooleanSubscription;
 import io.reactivex.rxjava3.observers.TestObserver;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 import io.reactivex.rxjava3.schedulers.*;
-import io.reactivex.rxjava3.subjects.PublishSubject;
+import io.reactivex.rxjava3.subjects.*;
 import io.reactivex.rxjava3.testsupport.TestHelper;
 
 public class SingleDelayTest extends RxJavaTest {
@@ -138,7 +138,7 @@ public class SingleDelayTest extends RxJavaTest {
     @Test
     public void onErrorCalledOnScheduler() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<Thread> thread = new AtomicReference<Thread>();
+        final AtomicReference<Thread> thread = new AtomicReference<>();
 
         Single.<String>error(new Exception())
                 .delay(0, TimeUnit.MILLISECONDS, Schedulers.newThread())
@@ -215,7 +215,7 @@ public class SingleDelayTest extends RxJavaTest {
             .delaySubscription(new Observable<Integer>() {
                 @Override
                 protected void subscribeActual(Observer<? super Integer> observer) {
-                    observer.onSubscribe(Disposables.empty());
+                    observer.onSubscribe(Disposable.empty());
                     observer.onNext(1);
                     observer.onError(new TestException());
                 }
@@ -269,5 +269,17 @@ public class SingleDelayTest extends RxJavaTest {
             }
         });
 
+    }
+
+    @Test
+    public void withPublisherDoubleOnSubscribe() {
+        TestHelper.checkDoubleOnSubscribeFlowableToSingle(
+                f -> SingleSubject.create().delaySubscription(f));
+    }
+
+    @Test
+    public void withObservableDoubleOnSubscribe() {
+        TestHelper.checkDoubleOnSubscribeObservableToSingle(
+                o -> SingleSubject.create().delaySubscription(o));
     }
 }

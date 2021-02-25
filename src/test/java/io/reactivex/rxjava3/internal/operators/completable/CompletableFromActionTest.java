@@ -14,6 +14,7 @@
 package io.reactivex.rxjava3.internal.operators.completable;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.*;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -22,13 +23,10 @@ import org.junit.Test;
 import io.reactivex.rxjava3.core.*;
 import io.reactivex.rxjava3.exceptions.TestException;
 import io.reactivex.rxjava3.functions.Action;
+import io.reactivex.rxjava3.observers.TestObserver;
+import io.reactivex.rxjava3.testsupport.TestHelper;
 
 public class CompletableFromActionTest extends RxJavaTest {
-    @Test(expected = NullPointerException.class)
-    public void fromActionNull() {
-        Completable.fromAction(null);
-    }
-
     @Test
     public void fromAction() {
         final AtomicInteger atomicInteger = new AtomicInteger();
@@ -113,7 +111,7 @@ public class CompletableFromActionTest extends RxJavaTest {
         .test(true)
         .assertEmpty();
 
-        assertEquals(1, calls.get());
+        assertEquals(0, calls.get());
     }
 
     @Test
@@ -129,6 +127,44 @@ public class CompletableFromActionTest extends RxJavaTest {
         .test(true)
         .assertEmpty();
 
-        assertEquals(1, calls.get());
+        assertEquals(0, calls.get());
+    }
+
+    @Test
+    public void disposedUpfront() throws Throwable {
+        Action run = mock(Action.class);
+
+        Completable.fromAction(run)
+        .test(true)
+        .assertEmpty();
+
+        verify(run, never()).run();
+    }
+
+    @Test
+    public void disposeWhileRunningComplete() {
+        TestObserver<Void> to = new TestObserver<>();
+
+        Completable.fromAction(() -> {
+            to.dispose();
+        })
+        .subscribeWith(to)
+        .assertEmpty();
+    }
+
+    @Test
+    public void disposeWhileRunningError() throws Throwable {
+        TestHelper.withErrorTracking(errors -> {
+            TestObserver<Void> to = new TestObserver<>();
+
+            Completable.fromAction(() -> {
+                to.dispose();
+                throw new TestException();
+            })
+            .subscribeWith(to)
+            .assertEmpty();
+
+            TestHelper.assertUndeliverable(errors, 0, TestException.class);
+        });
     }
 }

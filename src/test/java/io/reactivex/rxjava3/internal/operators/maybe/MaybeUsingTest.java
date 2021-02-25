@@ -411,11 +411,11 @@ public class MaybeUsingTest extends RxJavaTest {
                     return Maybe.wrap(new MaybeSource<Integer>() {
                         @Override
                         public void subscribe(MaybeObserver<? super Integer> observer) {
-                            Disposable d1 = Disposables.empty();
+                            Disposable d1 = Disposable.empty();
 
                             observer.onSubscribe(d1);
 
-                            Disposable d2 = Disposables.empty();
+                            Disposable d2 = Disposable.empty();
 
                             observer.onSubscribe(d2);
 
@@ -481,6 +481,7 @@ public class MaybeUsingTest extends RxJavaTest {
     }
 
     @Test
+    @SuppressUndeliverable
     public void errorDisposeRace() {
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
 

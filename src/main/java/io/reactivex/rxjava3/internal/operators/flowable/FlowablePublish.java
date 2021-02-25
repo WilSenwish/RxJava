@@ -34,7 +34,7 @@ import io.reactivex.rxjava3.plugins.RxJavaPlugins;
  * completes or the connection is disposed.
  * <p>
  * The difference to FlowablePublish is that when the upstream terminates,
- * late subscriberss will receive that terminal event until the connection is
+ * late subscribers will receive that terminal event until the connection is
  * disposed and the ConnectableFlowable is reset to its fresh state.
  *
  * @param <T> the element type
@@ -52,20 +52,12 @@ implements HasUpstreamPublisher<T> {
     public FlowablePublish(Publisher<T> source, int bufferSize) {
         this.source = source;
         this.bufferSize = bufferSize;
-        this.current = new AtomicReference<PublishConnection<T>>();
+        this.current = new AtomicReference<>();
     }
 
     @Override
     public Publisher<T> source() {
         return source;
-    }
-
-    /**
-     * The internal buffer size of this FloawblePublishAlt operator.
-     * @return The internal buffer size of this FloawblePublishAlt operator.
-     */
-    public int publishBufferSize() {
-        return bufferSize;
     }
 
     @Override
@@ -77,7 +69,7 @@ implements HasUpstreamPublisher<T> {
             conn = current.get();
 
             if (conn == null || conn.isDisposed()) {
-                PublishConnection<T> fresh = new PublishConnection<T>(current, bufferSize);
+                PublishConnection<T> fresh = new PublishConnection<>(current, bufferSize);
                 if (!current.compareAndSet(conn, fresh)) {
                     continue;
                 }
@@ -109,7 +101,7 @@ implements HasUpstreamPublisher<T> {
 
             // don't create a fresh connection if the current is disposed
             if (conn == null) {
-                PublishConnection<T> fresh = new PublishConnection<T>(current, bufferSize);
+                PublishConnection<T> fresh = new PublishConnection<>(current, bufferSize);
                 if (!current.compareAndSet(conn, fresh)) {
                     continue;
                 }
@@ -119,7 +111,7 @@ implements HasUpstreamPublisher<T> {
             break;
         }
 
-        InnerSubscription<T> inner = new InnerSubscription<T>(s, conn);
+        InnerSubscription<T> inner = new InnerSubscription<>(s, conn);
         s.onSubscribe(inner);
 
         if (conn.add(inner)) {
@@ -180,10 +172,10 @@ implements HasUpstreamPublisher<T> {
         @SuppressWarnings("unchecked")
         PublishConnection(AtomicReference<PublishConnection<T>> current, int bufferSize) {
             this.current = current;
-            this.upstream = new AtomicReference<Subscription>();
+            this.upstream = new AtomicReference<>();
             this.connect = new AtomicBoolean();
             this.bufferSize = bufferSize;
-            this.subscribers = new AtomicReference<InnerSubscription<T>[]>(EMPTY);
+            this.subscribers = new AtomicReference<>(EMPTY);
         }
 
         @SuppressWarnings("unchecked")
@@ -222,7 +214,7 @@ implements HasUpstreamPublisher<T> {
                     }
                 }
 
-                queue = new SpscArrayQueue<T>(bufferSize);
+                queue = new SpscArrayQueue<>(bufferSize);
 
                 s.request(bufferSize);
             }

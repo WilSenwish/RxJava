@@ -23,7 +23,7 @@ import io.reactivex.rxjava3.internal.functions.ObjectHelper;
 import io.reactivex.rxjava3.internal.fuseable.*;
 import io.reactivex.rxjava3.internal.queue.*;
 import io.reactivex.rxjava3.internal.subscriptions.*;
-import io.reactivex.rxjava3.internal.util.ExceptionHelper;
+import io.reactivex.rxjava3.internal.util.*;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 
 /**
@@ -138,8 +138,6 @@ public final class MulticastProcessor<T> extends FlowableProcessor<T> {
 
     final AtomicReference<MulticastSubscription<T>[]> subscribers;
 
-    final AtomicBoolean once;
-
     final int bufferSize;
 
     final int limit;
@@ -170,7 +168,7 @@ public final class MulticastProcessor<T> extends FlowableProcessor<T> {
     @CheckReturnValue
     @NonNull
     public static <T> MulticastProcessor<T> create() {
-        return new MulticastProcessor<T>(bufferSize(), false);
+        return new MulticastProcessor<>(bufferSize(), false);
     }
 
     /**
@@ -184,7 +182,7 @@ public final class MulticastProcessor<T> extends FlowableProcessor<T> {
     @CheckReturnValue
     @NonNull
     public static <T> MulticastProcessor<T> create(boolean refCount) {
-        return new MulticastProcessor<T>(bufferSize(), refCount);
+        return new MulticastProcessor<>(bufferSize(), refCount);
     }
 
     /**
@@ -192,11 +190,13 @@ public final class MulticastProcessor<T> extends FlowableProcessor<T> {
      * @param bufferSize the prefetch amount
      * @param <T> the input and output value type
      * @return the new MulticastProcessor instance
+     * @throws IllegalArgumentException if {@code bufferSize} is non-positive
      */
     @CheckReturnValue
     @NonNull
     public static <T> MulticastProcessor<T> create(int bufferSize) {
-        return new MulticastProcessor<T>(bufferSize, false);
+        ObjectHelper.verifyPositive(bufferSize, "bufferSize");
+        return new MulticastProcessor<>(bufferSize, false);
     }
 
     /**
@@ -207,11 +207,13 @@ public final class MulticastProcessor<T> extends FlowableProcessor<T> {
      * is cancelled
      * @param <T> the input and output value type
      * @return the new MulticastProcessor instance
+     * @throws IllegalArgumentException if {@code bufferSize} is non-positive
      */
     @CheckReturnValue
     @NonNull
     public static <T> MulticastProcessor<T> create(int bufferSize, boolean refCount) {
-        return new MulticastProcessor<T>(bufferSize, refCount);
+        ObjectHelper.verifyPositive(bufferSize, "bufferSize");
+        return new MulticastProcessor<>(bufferSize, refCount);
     }
 
     /**
@@ -223,14 +225,12 @@ public final class MulticastProcessor<T> extends FlowableProcessor<T> {
      */
     @SuppressWarnings("unchecked")
     MulticastProcessor(int bufferSize, boolean refCount) {
-        ObjectHelper.verifyPositive(bufferSize, "bufferSize");
         this.bufferSize = bufferSize;
         this.limit = bufferSize - (bufferSize >> 2);
         this.wip = new AtomicInteger();
-        this.subscribers = new AtomicReference<MulticastSubscription<T>[]>(EMPTY);
-        this.upstream = new AtomicReference<Subscription>();
+        this.subscribers = new AtomicReference<>(EMPTY);
+        this.upstream = new AtomicReference<>();
         this.refcount = refCount;
-        this.once = new AtomicBoolean();
     }
 
     /**
@@ -241,7 +241,7 @@ public final class MulticastProcessor<T> extends FlowableProcessor<T> {
      */
     public void start() {
         if (SubscriptionHelper.setOnce(upstream, EmptySubscription.INSTANCE)) {
-            queue = new SpscArrayQueue<T>(bufferSize);
+            queue = new SpscArrayQueue<>(bufferSize);
         }
     }
 
@@ -253,12 +253,12 @@ public final class MulticastProcessor<T> extends FlowableProcessor<T> {
      */
     public void startUnbounded() {
         if (SubscriptionHelper.setOnce(upstream, EmptySubscription.INSTANCE)) {
-            queue = new SpscLinkedArrayQueue<T>(bufferSize);
+            queue = new SpscLinkedArrayQueue<>(bufferSize);
         }
     }
 
     @Override
-    public void onSubscribe(Subscription s) {
+    public void onSubscribe(@NonNull Subscription s) {
         if (SubscriptionHelper.setOnce(upstream, s)) {
             if (s instanceof QueueSubscription) {
                 @SuppressWarnings("unchecked")
@@ -281,15 +281,15 @@ public final class MulticastProcessor<T> extends FlowableProcessor<T> {
                 }
             }
 
-            queue = new SpscArrayQueue<T>(bufferSize);
+            queue = new SpscArrayQueue<>(bufferSize);
 
             s.request(bufferSize);
         }
     }
 
     @Override
-    public void onNext(T t) {
-        if (once.get()) {
+    public void onNext(@NonNull T t) {
+        if (done) {
             return;
         }
         if (fusionMode == QueueSubscription.NONE) {
@@ -306,66 +306,72 @@ public final class MulticastProcessor<T> extends FlowableProcessor<T> {
     /**
      * Tries to offer an item into the internal queue and returns false
      * if the queue is full.
-     * @param t the item to offer, not null
+     * @param t the item to offer, not {@code null}
      * @return true if successful, false if the queue is full
+     * @throws NullPointerException if {@code t} is {@code null}
+     * @throws IllegalStateException if the processor is in fusion mode
      */
-    public boolean offer(T t) {
-        if (once.get()) {
+    @CheckReturnValue
+    public boolean offer(@NonNull T t) {
+        ExceptionHelper.nullCheck(t, "offer called with a null value.");
+        if (done) {
             return false;
         }
-        ExceptionHelper.nullCheck(t, "offer called with a null value.");
         if (fusionMode == QueueSubscription.NONE) {
             if (queue.offer(t)) {
                 drain();
                 return true;
             }
+            return false;
         }
-        return false;
+        throw new IllegalStateException("offer() should not be called in fusion mode!");
     }
 
     @Override
-    public void onError(Throwable t) {
+    public void onError(@NonNull Throwable t) {
         ExceptionHelper.nullCheck(t, "onError called with a null Throwable.");
-        if (once.compareAndSet(false, true)) {
+        if (!done) {
             error = t;
             done = true;
             drain();
-        } else {
-            RxJavaPlugins.onError(t);
+            return;
         }
+        RxJavaPlugins.onError(t);
     }
 
     @Override
     public void onComplete() {
-        if (once.compareAndSet(false, true)) {
-            done = true;
-            drain();
-        }
+        done = true;
+        drain();
     }
 
     @Override
+    @CheckReturnValue
     public boolean hasSubscribers() {
         return subscribers.get().length != 0;
     }
 
     @Override
+    @CheckReturnValue
     public boolean hasThrowable() {
-        return once.get() && error != null;
+        return done && error != null;
     }
 
     @Override
+    @CheckReturnValue
     public boolean hasComplete() {
-        return once.get() && error == null;
+        return done && error == null;
     }
 
     @Override
+    @CheckReturnValue
     public Throwable getThrowable() {
-        return once.get() ? error : null;
+        return done ? error : null;
     }
 
     @Override
-    protected void subscribeActual(Subscriber<? super T> s) {
-        MulticastSubscription<T> ms = new MulticastSubscription<T>(s, this);
+    protected void subscribeActual(@NonNull Subscriber<@NonNull ? super T> s) {
+        MulticastSubscription<T> ms = new MulticastSubscription<>(s, this);
         s.onSubscribe(ms);
         if (add(ms)) {
             if (ms.get() == Long.MIN_VALUE) {
@@ -374,7 +380,7 @@ public final class MulticastProcessor<T> extends FlowableProcessor<T> {
                 drain();
             }
         } else {
-            if (once.get() || !refcount) {
+            if (done) {
                 Throwable ex = error;
                 if (ex != null) {
                     s.onError(ex);
@@ -427,7 +433,7 @@ public final class MulticastProcessor<T> extends FlowableProcessor<T> {
                 if (refcount) {
                     if (subscribers.compareAndSet(a, TERMINATED)) {
                         SubscriptionHelper.cancel(upstream);
-                        once.set(true);
+                        done = true;
                         break;
                     }
                 } else {
@@ -550,7 +556,7 @@ public final class MulticastProcessor<T> extends FlowableProcessor<T> {
                         }
 
                         if (as != bs) {
-                            continue outer;
+                            continue;
                         }
 
                         if (done && q.isEmpty()) {
@@ -570,6 +576,7 @@ public final class MulticastProcessor<T> extends FlowableProcessor<T> {
                 }
             }
 
+            consumed = c;
             missed = wip.addAndGet(-missed);
             if (missed == 0) {
                 break;
@@ -581,13 +588,13 @@ public final class MulticastProcessor<T> extends FlowableProcessor<T> {
 
         private static final long serialVersionUID = -363282618957264509L;
 
-        final Subscriber<? super T> downstream;
+        final Subscriber<@NonNull ? super T> downstream;
 
         final MulticastProcessor<T> parent;
 
         long emitted;
 
-        MulticastSubscription(Subscriber<? super T> actual, MulticastProcessor<T> parent) {
+        MulticastSubscription(Subscriber<@NonNull ? super T> actual, MulticastProcessor<T> parent) {
             this.downstream = actual;
             this.parent = parent;
         }
@@ -595,19 +602,9 @@ public final class MulticastProcessor<T> extends FlowableProcessor<T> {
         @Override
         public void request(long n) {
             if (SubscriptionHelper.validate(n)) {
-                for (;;) {
-                    long r = get();
-                    if (r == Long.MIN_VALUE || r == Long.MAX_VALUE) {
-                        break;
-                    }
-                    long u = r + n;
-                    if (u < 0L) {
-                        u = Long.MAX_VALUE;
-                    }
-                    if (compareAndSet(r, u)) {
-                        parent.drain();
-                        break;
-                    }
+                long r = BackpressureHelper.addCancel(this, n);
+                if (r != Long.MIN_VALUE && r != Long.MAX_VALUE) {
+                    parent.drain();
                 }
             }
         }

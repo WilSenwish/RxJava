@@ -42,7 +42,7 @@ public final class ObservableTakeLastTimed<T> extends AbstractObservableWithUpst
 
     @Override
     public void subscribeActual(Observer<? super T> t) {
-        source.subscribe(new TakeLastTimedObserver<T>(t, count, time, unit, scheduler, bufferSize, delayError));
+        source.subscribe(new TakeLastTimedObserver<>(t, count, time, unit, scheduler, bufferSize, delayError));
     }
 
     static final class TakeLastTimedObserver<T>
@@ -69,7 +69,7 @@ public final class ObservableTakeLastTimed<T> extends AbstractObservableWithUpst
             this.time = time;
             this.unit = unit;
             this.scheduler = scheduler;
-            this.queue = new SpscLinkedArrayQueue<Object>(bufferSize);
+            this.queue = new SpscLinkedArrayQueue<>(bufferSize);
             this.delayError = delayError;
         }
 
@@ -139,6 +139,7 @@ public final class ObservableTakeLastTimed<T> extends AbstractObservableWithUpst
             final Observer<? super T> a = downstream;
             final SpscLinkedArrayQueue<Object> q = queue;
             final boolean delayError = this.delayError;
+            final long timestampLimit = scheduler.now(unit) - time;
 
             for (;;) {
                 if (cancelled) {
@@ -171,7 +172,7 @@ public final class ObservableTakeLastTimed<T> extends AbstractObservableWithUpst
                 @SuppressWarnings("unchecked")
                 T o = (T)q.poll();
 
-                if ((Long)ts < scheduler.now(unit) - time) {
+                if ((Long)ts < timestampLimit) {
                     continue;
                 }
 

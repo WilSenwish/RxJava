@@ -15,17 +15,21 @@ package io.reactivex.rxjava3.internal.operators.maybe;
 
 import static org.junit.Assert.*;
 
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Test;
 
+import io.reactivex.rxjava3.annotations.NonNull;
 import io.reactivex.rxjava3.core.*;
+import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.exceptions.TestException;
 import io.reactivex.rxjava3.functions.*;
 import io.reactivex.rxjava3.internal.functions.Functions;
 import io.reactivex.rxjava3.observers.TestObserver;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 import io.reactivex.rxjava3.processors.PublishProcessor;
+import io.reactivex.rxjava3.subjects.MaybeSubject;
 import io.reactivex.rxjava3.testsupport.TestHelper;
 
 public class MaybeZipArrayTest extends RxJavaTest {
@@ -151,7 +155,6 @@ public class MaybeZipArrayTest extends RxJavaTest {
         }
     }
 
-    @SuppressWarnings("unchecked")
     @Test(expected = NullPointerException.class)
     public void zipArrayOneIsNull() {
         Maybe.zipArray(new Function<Object[], Object>() {
@@ -163,11 +166,76 @@ public class MaybeZipArrayTest extends RxJavaTest {
         .blockingGet();
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void singleSourceZipperReturnsNull() {
         Maybe.zipArray(Functions.justFunction(null), Maybe.just(1))
         .to(TestHelper.<Object>testConsumer())
         .assertFailureAndMessage(NullPointerException.class, "The zipper returned a null value");
+    }
+
+    @Test
+    public void dispose2() {
+        TestHelper.checkDisposed(Maybe.zipArray(v -> v, MaybeSubject.create(), MaybeSubject.create()));
+    }
+
+    @Test
+    public void bothComplete() {
+        AtomicReference<MaybeObserver<? super Integer>> ref1 = new AtomicReference<>();
+        AtomicReference<MaybeObserver<? super Integer>> ref2 = new AtomicReference<>();
+
+        Maybe<Integer> m1 = new Maybe<Integer>() {
+            @Override
+            protected void subscribeActual(@NonNull MaybeObserver<? super Integer> observer) {
+                ref1.set(observer);
+            }
+        };
+        Maybe<Integer> m2 = new Maybe<Integer>() {
+            @Override
+            protected void subscribeActual(@NonNull MaybeObserver<? super Integer> observer) {
+                ref2.set(observer);
+            }
+        };
+
+        TestObserver<Object[]> to = Maybe.zipArray(v -> v, m1, m2)
+        .test();
+
+        ref1.get().onSubscribe(Disposable.empty());
+        ref2.get().onSubscribe(Disposable.empty());
+
+        ref1.get().onComplete();
+        ref2.get().onComplete();
+
+        to.assertResult();
+    }
+
+    @Test
+    public void bothSucceed() {
+        Maybe.zipArray(v -> Arrays.asList(v), Maybe.just(1), Maybe.just(2))
+        .test()
+        .assertResult(Arrays.asList(1, 2));
+    }
+
+    @Test
+    public void oneSourceOnly() {
+        Maybe.zipArray(v -> Arrays.asList(v), Maybe.just(1))
+        .test()
+        .assertResult(Arrays.asList(1));
+    }
+
+    @Test
+    public void onSuccessAfterDispose() {
+        AtomicReference<MaybeObserver<? super Integer>> emitter = new AtomicReference<>();
+
+        TestObserver<List<Object>> to = Maybe.zipArray(Arrays::asList,
+                (MaybeSource<Integer>)o -> emitter.set(o), Maybe.<Integer>never())
+        .test();
+
+        emitter.get().onSubscribe(Disposable.empty());
+
+        to.dispose();
+
+        emitter.get().onSuccess(1);
+
+        to.assertEmpty();
     }
 }

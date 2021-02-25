@@ -21,7 +21,6 @@ import org.reactivestreams.*;
 import io.reactivex.rxjava3.core.*;
 import io.reactivex.rxjava3.exceptions.Exceptions;
 import io.reactivex.rxjava3.functions.*;
-import io.reactivex.rxjava3.internal.functions.ObjectHelper;
 import io.reactivex.rxjava3.internal.subscriptions.SubscriptionHelper;
 import io.reactivex.rxjava3.internal.util.*;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
@@ -43,11 +42,11 @@ public final class FlowableBuffer<T, C extends Collection<? super T>> extends Ab
     @Override
     public void subscribeActual(Subscriber<? super C> s) {
         if (size == skip) {
-            source.subscribe(new PublisherBufferExactSubscriber<T, C>(s, size, bufferSupplier));
+            source.subscribe(new PublisherBufferExactSubscriber<>(s, size, bufferSupplier));
         } else if (skip > size) {
-            source.subscribe(new PublisherBufferSkipSubscriber<T, C>(s, size, skip, bufferSupplier));
+            source.subscribe(new PublisherBufferSkipSubscriber<>(s, size, skip, bufferSupplier));
         } else {
-            source.subscribe(new PublisherBufferOverlappingSubscriber<T, C>(s, size, skip, bufferSupplier));
+            source.subscribe(new PublisherBufferOverlappingSubscriber<>(s, size, skip, bufferSupplier));
         }
     }
 
@@ -105,7 +104,7 @@ public final class FlowableBuffer<T, C extends Collection<? super T>> extends Ab
             if (b == null) {
 
                 try {
-                    b = ObjectHelper.requireNonNull(bufferSupplier.get(), "The bufferSupplier returned a null buffer");
+                    b = Objects.requireNonNull(bufferSupplier.get(), "The bufferSupplier returned a null buffer");
                 } catch (Throwable e) {
                     Exceptions.throwIfFatal(e);
                     cancel();
@@ -134,6 +133,7 @@ public final class FlowableBuffer<T, C extends Collection<? super T>> extends Ab
                 RxJavaPlugins.onError(t);
                 return;
             }
+            buffer = null;
             done = true;
             downstream.onError(t);
         }
@@ -146,8 +146,9 @@ public final class FlowableBuffer<T, C extends Collection<? super T>> extends Ab
             done = true;
 
             C b = buffer;
+            buffer = null;
 
-            if (b != null && !b.isEmpty()) {
+            if (b != null) {
                 downstream.onNext(b);
             }
             downstream.onComplete();
@@ -227,7 +228,7 @@ public final class FlowableBuffer<T, C extends Collection<? super T>> extends Ab
 
             if (i++ == 0) {
                 try {
-                    b = ObjectHelper.requireNonNull(bufferSupplier.get(), "The bufferSupplier returned a null buffer");
+                    b = Objects.requireNonNull(bufferSupplier.get(), "The bufferSupplier returned a null buffer");
                 } catch (Throwable e) {
                     Exceptions.throwIfFatal(e);
                     cancel();
@@ -319,7 +320,7 @@ public final class FlowableBuffer<T, C extends Collection<? super T>> extends Ab
             this.skip = skip;
             this.bufferSupplier = bufferSupplier;
             this.once = new AtomicBoolean();
-            this.buffers = new ArrayDeque<C>();
+            this.buffers = new ArrayDeque<>();
         }
 
         @Override
@@ -378,7 +379,7 @@ public final class FlowableBuffer<T, C extends Collection<? super T>> extends Ab
                 C b;
 
                 try {
-                    b = ObjectHelper.requireNonNull(bufferSupplier.get(), "The bufferSupplier returned a null buffer");
+                    b = Objects.requireNonNull(bufferSupplier.get(), "The bufferSupplier returned a null buffer");
                 } catch (Throwable e) {
                     Exceptions.throwIfFatal(e);
                     cancel();
@@ -391,7 +392,7 @@ public final class FlowableBuffer<T, C extends Collection<? super T>> extends Ab
 
             C b = bs.peek();
 
-            if (b != null && b.size() + 1 == size) {
+            if (b.size() + 1 == size) {
                 bs.poll();
 
                 b.add(t);

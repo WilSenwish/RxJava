@@ -16,10 +16,12 @@ package io.reactivex.rxjava3.internal.operators.parallel;
 import org.reactivestreams.*;
 
 import io.reactivex.rxjava3.functions.Function;
-import io.reactivex.rxjava3.internal.functions.ObjectHelper;
 import io.reactivex.rxjava3.internal.operators.flowable.FlowableConcatMap;
 import io.reactivex.rxjava3.internal.util.ErrorMode;
 import io.reactivex.rxjava3.parallel.ParallelFlowable;
+import io.reactivex.rxjava3.plugins.RxJavaPlugins;
+
+import java.util.Objects;
 
 /**
  * Concatenates the generated Publishers on each rail.
@@ -42,9 +44,9 @@ public final class ParallelConcatMap<T, R> extends ParallelFlowable<R> {
             Function<? super T, ? extends Publisher<? extends R>> mapper,
                     int prefetch, ErrorMode errorMode) {
         this.source = source;
-        this.mapper = ObjectHelper.requireNonNull(mapper, "mapper");
+        this.mapper = Objects.requireNonNull(mapper, "mapper");
         this.prefetch = prefetch;
-        this.errorMode = ObjectHelper.requireNonNull(errorMode, "errorMode");
+        this.errorMode = Objects.requireNonNull(errorMode, "errorMode");
     }
 
     @Override
@@ -54,6 +56,8 @@ public final class ParallelConcatMap<T, R> extends ParallelFlowable<R> {
 
     @Override
     public void subscribe(Subscriber<? super R>[] subscribers) {
+        subscribers = RxJavaPlugins.onSubscribe(this, subscribers);
+
         if (!validate(subscribers)) {
             return;
         }

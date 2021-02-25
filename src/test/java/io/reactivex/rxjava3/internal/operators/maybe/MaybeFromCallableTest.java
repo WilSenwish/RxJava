@@ -34,11 +34,6 @@ import io.reactivex.rxjava3.schedulers.Schedulers;
 import io.reactivex.rxjava3.testsupport.TestHelper;
 
 public class MaybeFromCallableTest extends RxJavaTest {
-    @Test(expected = NullPointerException.class)
-    public void fromCallableNull() {
-        Maybe.fromCallable(null);
-    }
-
     @Test
     public void fromCallable() {
         final AtomicInteger atomicInteger = new AtomicInteger();
@@ -196,7 +191,7 @@ public class MaybeFromCallableTest extends RxJavaTest {
 
         Observer<Object> observer = TestHelper.mockObserver();
 
-        TestObserver<String> outer = new TestObserver<String>(observer);
+        TestObserver<String> outer = new TestObserver<>(observer);
 
         fromCallableObservable
                 .subscribeOn(Schedulers.computation())
@@ -217,5 +212,19 @@ public class MaybeFromCallableTest extends RxJavaTest {
         // Observer must not be notified at all
         verify(observer).onSubscribe(any(Disposable.class));
         verifyNoMoreInteractions(observer);
+    }
+
+    @Test
+    public void disposeUpfront() {
+        Maybe.fromCallable(() -> 1)
+        .test(true)
+        .assertEmpty();
+    }
+
+    @Test
+    public void success() {
+        Maybe.fromCallable(() -> 1)
+        .test()
+        .assertResult(1);
     }
 }

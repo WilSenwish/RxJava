@@ -20,7 +20,8 @@ import io.reactivex.rxjava3.annotations.NonNull;
  * @param <T1> the first value
  * @param <T2> the second value
  */
-public interface BiPredicate<T1, T2> {
+@FunctionalInterface
+public interface BiPredicate<@NonNull T1, @NonNull T2> {
 
     /**
      * Test the given input values and return a boolean.

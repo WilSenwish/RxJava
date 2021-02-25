@@ -21,6 +21,7 @@ import java.util.concurrent.*;
 import org.junit.Test;
 import org.reactivestreams.*;
 
+import io.reactivex.rxjava3.annotations.NonNull;
 import io.reactivex.rxjava3.core.*;
 import io.reactivex.rxjava3.exceptions.*;
 import io.reactivex.rxjava3.functions.*;
@@ -28,7 +29,7 @@ import io.reactivex.rxjava3.internal.functions.Functions;
 import io.reactivex.rxjava3.internal.fuseable.*;
 import io.reactivex.rxjava3.internal.subscribers.BasicFuseableSubscriber;
 import io.reactivex.rxjava3.internal.subscriptions.BooleanSubscription;
-import io.reactivex.rxjava3.processors.UnicastProcessor;
+import io.reactivex.rxjava3.processors.*;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import io.reactivex.rxjava3.testsupport.*;
 
@@ -71,12 +72,12 @@ public class ParallelFromPublisherTest extends RxJavaTest {
 
         @Override
         public Publisher<T> apply(Flowable<T> upstream) {
-            return new StripBoundary<T>(upstream);
+            return new StripBoundary<>(upstream);
         }
 
         @Override
         protected void subscribeActual(Subscriber<? super T> s) {
-            source.subscribe(new StripBoundarySubscriber<T>(s));
+            source.subscribe(new StripBoundarySubscriber<>(s));
         }
 
         static final class StripBoundarySubscriber<T> extends BasicFuseableSubscriber<T, T> {
@@ -117,7 +118,7 @@ public class ParallelFromPublisherTest extends RxJavaTest {
                 throw new TestException();
             }
         })
-        .compose(new StripBoundary<Object>(null))
+        .compose(new StripBoundary<>(null))
         .parallel()
         .sequential()
         .test()
@@ -137,7 +138,7 @@ public class ParallelFromPublisherTest extends RxJavaTest {
                 throw new TestException();
             }
         })
-        .compose(new StripBoundary<Object>(null))
+        .compose(new StripBoundary<>(null))
         .parallel()
         .sequential()
         .test()
@@ -148,8 +149,8 @@ public class ParallelFromPublisherTest extends RxJavaTest {
 
     @Test
     public void boundaryConfinement() {
-        final Set<String> between = new HashSet<String>();
-        final ConcurrentHashMap<String, String> processing = new ConcurrentHashMap<String, String>();
+        final Set<String> between = new HashSet<>();
+        final ConcurrentHashMap<String, String> processing = new ConcurrentHashMap<>();
 
         TestSubscriberEx<Object> ts = Flowable.range(1, 10)
         .observeOn(Schedulers.single(), false, 1)
@@ -186,5 +187,108 @@ public class ParallelFromPublisherTest extends RxJavaTest {
         for (String e : map.keySet()) {
             assertTrue(map.toString(), e.contains("RxComputationThreadPool"));
         }
+    }
+
+    @Test
+    public void badRequest() {
+        TestHelper.assertBadRequestReported(PublishProcessor.create().parallel());
+    }
+
+    @Test
+    public void syncFusedEmptyPoll() {
+        Flowable.just(1, 2)
+        .filter(v -> v == 1)
+        .compose(TestHelper.flowableStripBoundary())
+        .parallel(1)
+        .sequential()
+        .test()
+        .assertResult(1);
+    }
+
+    @Test
+    public void asyncFusedEmptyPoll() {
+        UnicastProcessor<Integer> up = UnicastProcessor.create();
+        up.onNext(1);
+        up.onNext(2);
+        up.onComplete();
+
+        up
+        .filter(v -> v == 1)
+        .compose(TestHelper.flowableStripBoundary())
+        .parallel(1)
+        .sequential()
+        .test()
+        .assertResult(1);
+    }
+
+    @Test
+    public void doubleOnSubscribe() {
+        TestHelper.checkDoubleOnSubscribeFlowable(f -> f.parallel().sequential());
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    public void requestUnboundedRace() {
+        FlowableSubscriber<Integer> fs = new FlowableSubscriber<Integer>() {
+
+            @Override
+            public void onNext(@NonNull Integer t) {
+            }
+
+            @Override
+            public void onError(Throwable t) {
+            }
+
+            @Override
+            public void onComplete() {
+            }
+
+            @Override
+            public void onSubscribe(@NonNull Subscription s) {
+                for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
+                    TestHelper.race(
+                            () -> s.request(Long.MAX_VALUE),
+                            () -> s.request(Long.MAX_VALUE)
+                    );
+                }
+            }
+        };
+
+        PublishProcessor.create()
+        .parallel(1)
+        .subscribe(new FlowableSubscriber[] { fs });
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    public void requestRace() {
+        FlowableSubscriber<Integer> fs = new FlowableSubscriber<Integer>() {
+
+            @Override
+            public void onNext(@NonNull Integer t) {
+            }
+
+            @Override
+            public void onError(Throwable t) {
+            }
+
+            @Override
+            public void onComplete() {
+            }
+
+            @Override
+            public void onSubscribe(@NonNull Subscription s) {
+                for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
+                    TestHelper.race(
+                            () -> s.request(1),
+                            () -> s.request(1)
+                    );
+                }
+            }
+        };
+
+        PublishProcessor.create()
+        .parallel(1)
+        .subscribe(new FlowableSubscriber[] { fs });
     }
 }

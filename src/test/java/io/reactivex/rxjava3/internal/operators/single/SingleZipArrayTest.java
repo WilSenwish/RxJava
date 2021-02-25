@@ -16,16 +16,19 @@ package io.reactivex.rxjava3.internal.operators.single;
 import static org.junit.Assert.*;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Test;
 
 import io.reactivex.rxjava3.core.*;
+import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.exceptions.TestException;
 import io.reactivex.rxjava3.functions.*;
 import io.reactivex.rxjava3.internal.functions.Functions;
 import io.reactivex.rxjava3.observers.TestObserver;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 import io.reactivex.rxjava3.processors.PublishProcessor;
+import io.reactivex.rxjava3.subjects.SingleSubject;
 import io.reactivex.rxjava3.testsupport.TestHelper;
 
 public class SingleZipArrayTest extends RxJavaTest {
@@ -151,7 +154,6 @@ public class SingleZipArrayTest extends RxJavaTest {
         }
     }
 
-    @SuppressWarnings("unchecked")
     @Test(expected = NullPointerException.class)
     public void zipArrayOneIsNull() {
         Single.zipArray(new Function<Object[], Object>() {
@@ -176,7 +178,6 @@ public class SingleZipArrayTest extends RxJavaTest {
         .assertFailure(NoSuchElementException.class);
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void oneArray() {
         Single.zipArray(new Function<Object[], Object>() {
@@ -189,11 +190,46 @@ public class SingleZipArrayTest extends RxJavaTest {
         .assertResult(2);
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void singleSourceZipperReturnsNull() {
         Single.zipArray(Functions.justFunction(null), Single.just(1))
         .to(TestHelper.<Object>testConsumer())
         .assertFailureAndMessage(NullPointerException.class, "The zipper returned a null value");
+    }
+
+    @Test
+    public void singleSourceZipperReturnsNull2() {
+        Single.zipArray(Functions.justFunction(null), Single.just(1), Single.just(2))
+        .to(TestHelper.<Object>testConsumer())
+        .assertFailureAndMessage(NullPointerException.class, "The zipper returned a null value");
+    }
+
+    @Test
+    public void dispose2() {
+        TestHelper.checkDisposed(Single.zipArray(Functions.justFunction(1), SingleSubject.create(), SingleSubject.create()));
+    }
+
+    @Test
+    public void bothSucceed() {
+        Single.zipArray(a -> Arrays.asList(a), Single.just(1), Single.just(2))
+        .test()
+        .assertResult(Arrays.asList(1, 2));
+    }
+
+    @Test
+    public void onSuccessAfterDispose() {
+        AtomicReference<SingleObserver<? super Integer>> emitter = new AtomicReference<>();
+
+        TestObserver<List<Object>> to = Single.zipArray(Arrays::asList,
+                (SingleSource<Integer>)o -> emitter.set(o), Single.<Integer>never())
+        .test();
+
+        emitter.get().onSubscribe(Disposable.empty());
+
+        to.dispose();
+
+        emitter.get().onSuccess(1);
+
+        to.assertEmpty();
     }
 }

@@ -30,7 +30,7 @@ import io.reactivex.rxjava3.exceptions.*;
 import io.reactivex.rxjava3.functions.*;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import io.reactivex.rxjava3.subscribers.*;
-import io.reactivex.rxjava3.testsupport.TestHelper;
+import io.reactivex.rxjava3.testsupport.*;
 
 public class PublishProcessorTest extends FlowableProcessorTest<Object> {
 
@@ -40,6 +40,7 @@ public class PublishProcessorTest extends FlowableProcessorTest<Object> {
     }
 
     @Test
+    @SuppressUndeliverable
     public void completed() {
         PublishProcessor<String> processor = PublishProcessor.create();
 
@@ -69,7 +70,7 @@ public class PublishProcessorTest extends FlowableProcessorTest<Object> {
         Subscriber<Object> observerB = TestHelper.mockSubscriber();
         Subscriber<Object> observerC = TestHelper.mockSubscriber();
 
-        TestSubscriber<Object> ts = new TestSubscriber<Object>(observerA);
+        TestSubscriber<Object> ts = new TestSubscriber<>(observerA);
 
         channel.subscribe(ts);
         channel.subscribe(observerB);
@@ -113,6 +114,7 @@ public class PublishProcessorTest extends FlowableProcessorTest<Object> {
     }
 
     @Test
+    @SuppressUndeliverable
     public void error() {
         PublishProcessor<String> processor = PublishProcessor.create();
 
@@ -178,7 +180,7 @@ public class PublishProcessorTest extends FlowableProcessorTest<Object> {
         PublishProcessor<String> processor = PublishProcessor.create();
 
         Subscriber<String> subscriber = TestHelper.mockSubscriber();
-        TestSubscriber<String> ts = new TestSubscriber<String>(subscriber);
+        TestSubscriber<String> ts = new TestSubscriber<>(subscriber);
         processor.subscribe(ts);
 
         processor.onNext("one");
@@ -213,7 +215,7 @@ public class PublishProcessorTest extends FlowableProcessorTest<Object> {
         final AtomicInteger countChildren = new AtomicInteger();
         final AtomicInteger countTotal = new AtomicInteger();
 
-        final ArrayList<String> list = new ArrayList<String>();
+        final ArrayList<String> list = new ArrayList<>();
 
         s.flatMap(new Function<Integer, Flowable<String>>() {
 
@@ -264,7 +266,7 @@ public class PublishProcessorTest extends FlowableProcessorTest<Object> {
         final PublishProcessor<Integer> pp = PublishProcessor.create();
 
         Subscriber<Integer> subscriber1 = TestHelper.mockSubscriber();
-        TestSubscriber<Integer> ts = new TestSubscriber<Integer>(subscriber1);
+        TestSubscriber<Integer> ts = new TestSubscriber<>(subscriber1);
         pp.subscribe(ts);
 
         // emit
@@ -282,7 +284,7 @@ public class PublishProcessorTest extends FlowableProcessorTest<Object> {
         pp.onNext(2);
 
         Subscriber<Integer> subscriber2 = TestHelper.mockSubscriber();
-        TestSubscriber<Integer> ts2 = new TestSubscriber<Integer>(subscriber2);
+        TestSubscriber<Integer> ts2 = new TestSubscriber<>(subscriber2);
         pp.subscribe(ts2);
 
         // emit
@@ -412,7 +414,7 @@ public class PublishProcessorTest extends FlowableProcessorTest<Object> {
 
     @Test
     public void crossCancel() {
-        final TestSubscriber<Integer> ts1 = new TestSubscriber<Integer>();
+        final TestSubscriber<Integer> ts1 = new TestSubscriber<>();
         TestSubscriber<Integer> ts2 = new TestSubscriber<Integer>() {
             @Override
             public void onNext(Integer t) {
@@ -434,8 +436,9 @@ public class PublishProcessorTest extends FlowableProcessorTest<Object> {
     }
 
     @Test
+    @SuppressUndeliverable
     public void crossCancelOnError() {
-        final TestSubscriber<Integer> ts1 = new TestSubscriber<Integer>();
+        final TestSubscriber<Integer> ts1 = new TestSubscriber<>();
         TestSubscriber<Integer> ts2 = new TestSubscriber<Integer>() {
             @Override
             public void onError(Throwable t) {
@@ -458,7 +461,7 @@ public class PublishProcessorTest extends FlowableProcessorTest<Object> {
 
     @Test
     public void crossCancelOnComplete() {
-        final TestSubscriber<Integer> ts1 = new TestSubscriber<Integer>();
+        final TestSubscriber<Integer> ts1 = new TestSubscriber<>();
         TestSubscriber<Integer> ts2 = new TestSubscriber<Integer>() {
             @Override
             public void onComplete() {
@@ -597,12 +600,14 @@ public class PublishProcessorTest extends FlowableProcessorTest<Object> {
 
         ts = pp.test(0);
 
-        assertTrue(pp.offer(null));
+        try {
+            pp.offer(null);
+            fail("Should have thrown NPE!");
+        } catch (NullPointerException expected) {
+            // expected
+        }
 
-        ts.assertFailure(NullPointerException.class);
-
-        assertTrue(pp.hasThrowable());
-        assertTrue(pp.getThrowable().toString(), pp.getThrowable() instanceof NullPointerException);
+        ts.assertEmpty();
     }
 
     @Test

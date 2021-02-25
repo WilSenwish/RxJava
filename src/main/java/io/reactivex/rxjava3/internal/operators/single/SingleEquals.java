@@ -13,11 +13,11 @@
 
 package io.reactivex.rxjava3.internal.operators.single;
 
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import io.reactivex.rxjava3.core.*;
 import io.reactivex.rxjava3.disposables.*;
-import io.reactivex.rxjava3.internal.functions.ObjectHelper;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 
 public final class SingleEquals<T> extends Single<Boolean> {
@@ -68,26 +68,19 @@ public final class SingleEquals<T> extends Single<Boolean> {
             values[index] = value;
 
             if (count.incrementAndGet() == 2) {
-                downstream.onSuccess(ObjectHelper.equals(values[0], values[1]));
+                downstream.onSuccess(Objects.equals(values[0], values[1]));
             }
         }
 
         @Override
         public void onError(Throwable e) {
-            for (;;) {
-                int state = count.get();
-                if (state >= 2) {
-                    RxJavaPlugins.onError(e);
-                    return;
-                }
-                if (count.compareAndSet(state, 2)) {
-                    set.dispose();
-                    downstream.onError(e);
-                    return;
-                }
+            int state = count.getAndSet(-1);
+            if (state == 0 || state == 1) {
+                set.dispose();
+                downstream.onError(e);
+            } else {
+                RxJavaPlugins.onError(e);
             }
         }
-
     }
-
 }

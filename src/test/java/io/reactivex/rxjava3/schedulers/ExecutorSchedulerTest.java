@@ -18,14 +18,14 @@ import static org.junit.Assert.*;
 import java.lang.management.*;
 import java.util.List;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.*;
 
 import org.junit.Test;
 
 import io.reactivex.rxjava3.core.Scheduler;
 import io.reactivex.rxjava3.core.Scheduler.Worker;
 import io.reactivex.rxjava3.disposables.Disposable;
-import io.reactivex.rxjava3.internal.disposables.EmptyDisposable;
+import io.reactivex.rxjava3.internal.disposables.*;
 import io.reactivex.rxjava3.internal.functions.Functions;
 import io.reactivex.rxjava3.internal.schedulers.*;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
@@ -55,8 +55,7 @@ public class ExecutorSchedulerTest extends AbstractSchedulerConcurrencyTests {
         Thread.sleep(1000);
 
         MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
-        MemoryUsage memHeap = memoryMXBean.getHeapMemoryUsage();
-        long initial = memHeap.getUsed();
+        long initial = memoryMXBean.getHeapMemoryUsage().getUsed();
 
         System.out.printf("Starting: %.3f MB%n", initial / 1024.0 / 1024.0);
 
@@ -87,8 +86,7 @@ public class ExecutorSchedulerTest extends AbstractSchedulerConcurrencyTests {
             }
         }
 
-        memHeap = memoryMXBean.getHeapMemoryUsage();
-        long after = memHeap.getUsed();
+        long after = memoryMXBean.getHeapMemoryUsage().getUsed();
         System.out.printf("Peak: %.3f MB%n", after / 1024.0 / 1024.0);
 
         w.dispose();
@@ -96,34 +94,40 @@ public class ExecutorSchedulerTest extends AbstractSchedulerConcurrencyTests {
         System.out.println("Wait before second GC");
         System.out.println("JDK 6 purge is N log N because it removes and shifts one by one");
         int t = (int)(n * Math.log(n) / 100) + SchedulerPoolFactory.PURGE_PERIOD_SECONDS * 1000;
+        int sleepStep = 100;
         while (t > 0) {
             System.out.printf("  >> Waiting for purge: %.2f s remaining%n", t / 1000d);
 
             System.gc();
 
-            Thread.sleep(1000);
-
-            t -= 1000;
-            memHeap = memoryMXBean.getHeapMemoryUsage();
-            long finish = memHeap.getUsed();
+            long finish = memoryMXBean.getHeapMemoryUsage().getUsed();
             System.out.printf("After: %.3f MB%n", finish / 1024.0 / 1024.0);
             if (finish <= initial * 5) {
                 break;
             }
+
+            Thread.sleep(sleepStep);
+            t -= sleepStep;
         }
 
         System.out.println("Second GC");
         System.gc();
 
-        Thread.sleep(1000);
+        t = 2000;
+        long finish = memoryMXBean.getHeapMemoryUsage().getUsed();
 
-        memHeap = memoryMXBean.getHeapMemoryUsage();
-        long finish = memHeap.getUsed();
-        System.out.printf("After: %.3f MB%n", finish / 1024.0 / 1024.0);
+        while (t > 0) {
+            System.out.printf("After: %.3f MB%n", finish / 1024.0 / 1024.0);
 
-        if (finish > initial * 5) {
-            fail(String.format("Tasks retained: %.3f -> %.3f -> %.3f", initial / 1024 / 1024.0, after / 1024 / 1024.0, finish / 1024 / 1024d));
+            if (finish <= initial * 5) {
+                return;
+            }
+            Thread.sleep(sleepStep);
+            t -= sleepStep;
+            finish = memoryMXBean.getHeapMemoryUsage().getUsed();
         }
+
+        fail(String.format("Tasks retained: %.3f -> %.3f -> %.3f", initial / 1024 / 1024.0, after / 1024 / 1024.0, finish / 1024 / 1024d));
     }
 
     @Test
@@ -151,7 +155,7 @@ public class ExecutorSchedulerTest extends AbstractSchedulerConcurrencyTests {
 
     /** A simple executor which queues tasks and executes them one-by-one if executeOne() is called. */
     static final class TestExecutor implements Executor {
-        final ConcurrentLinkedQueue<Runnable> queue = new ConcurrentLinkedQueue<Runnable>();
+        final ConcurrentLinkedQueue<Runnable> queue = new ConcurrentLinkedQueue<>();
         @Override
         public void execute(Runnable command) {
             queue.offer(command);
@@ -504,5 +508,43 @@ public class ExecutorSchedulerTest extends AbstractSchedulerConcurrencyTests {
         disposable.dispose();
 
         assertSame(Functions.EMPTY_RUNNABLE, wrapper.getWrappedRunnable());
+    }
+
+    @Test
+    public void interruptibleRunnableRunDisposeRace() {
+        ExecutorService exec = Executors.newSingleThreadExecutor();
+        try {
+            Scheduler s = Schedulers.from(r -> exec.execute(r), true);
+            for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
+                SequentialDisposable sd = new SequentialDisposable();
+
+                TestHelper.race(
+                        () -> sd.update(s.scheduleDirect(() -> { })),
+                        () -> sd.dispose()
+                );
+            }
+        } finally {
+            exec.shutdown();
+        }
+    }
+
+    @Test
+    public void interruptibleRunnableRunDispose() {
+        try {
+            for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
+                AtomicReference<Runnable> runRef = new AtomicReference<>();
+                Scheduler s = Schedulers.from(r -> {
+                    runRef.set(r);
+                }, true);
+
+                Disposable d = s.scheduleDirect(() -> { });
+                TestHelper.race(
+                        () -> runRef.get().run(),
+                        () -> d.dispose()
+                );
+            }
+        } finally {
+            Thread.interrupted();
+        }
     }
 }

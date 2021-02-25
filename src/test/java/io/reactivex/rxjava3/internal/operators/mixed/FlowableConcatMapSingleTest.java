@@ -18,11 +18,11 @@ import static org.junit.Assert.*;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
+import io.reactivex.rxjava3.disposables.Disposable;
 import org.junit.Test;
 import org.reactivestreams.Subscriber;
 
 import io.reactivex.rxjava3.core.*;
-import io.reactivex.rxjava3.disposables.Disposables;
 import io.reactivex.rxjava3.exceptions.*;
 import io.reactivex.rxjava3.functions.Function;
 import io.reactivex.rxjava3.internal.functions.Functions;
@@ -30,7 +30,7 @@ import io.reactivex.rxjava3.internal.operators.mixed.FlowableConcatMapSingle.Con
 import io.reactivex.rxjava3.internal.subscriptions.BooleanSubscription;
 import io.reactivex.rxjava3.internal.util.ErrorMode;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
-import io.reactivex.rxjava3.processors.PublishProcessor;
+import io.reactivex.rxjava3.processors.*;
 import io.reactivex.rxjava3.subjects.SingleSubject;
 import io.reactivex.rxjava3.subscribers.TestSubscriber;
 import io.reactivex.rxjava3.testsupport.*;
@@ -52,15 +52,19 @@ public class FlowableConcatMapSingleTest extends RxJavaTest {
     }
 
     @Test
-    public void simpleLong() {
+    public void simpleLongPrefetch() {
         Flowable.range(1, 1024)
-        .concatMapSingle(new Function<Integer, SingleSource<Integer>>() {
-            @Override
-            public SingleSource<Integer> apply(Integer v)
-                    throws Exception {
-                return Single.just(v);
-            }
-        }, 32)
+        .concatMapSingle(Single::just, 32)
+        .test()
+        .assertValueCount(1024)
+        .assertNoErrors()
+        .assertComplete();
+    }
+
+    @Test
+    public void simpleLongPrefetchHidden() {
+        Flowable.range(1, 1024).hide()
+        .concatMapSingle(Single::just, 32)
         .test()
         .assertValueCount(1024)
         .assertNoErrors()
@@ -181,7 +185,7 @@ public class FlowableConcatMapSingleTest extends RxJavaTest {
                 return Single.just(v);
             }
         })
-        .limit(3)
+        .take(3)
         .test()
         .assertResult(1, 2, 3);
     }
@@ -209,7 +213,7 @@ public class FlowableConcatMapSingleTest extends RxJavaTest {
         try {
             final PublishProcessor<Integer> pp = PublishProcessor.create();
 
-            final AtomicReference<SingleObserver<? super Integer>> obs = new AtomicReference<SingleObserver<? super Integer>>();
+            final AtomicReference<SingleObserver<? super Integer>> obs = new AtomicReference<>();
 
             TestSubscriberEx<Integer> ts = pp.concatMapSingle(
                     new Function<Integer, SingleSource<Integer>>() {
@@ -220,7 +224,7 @@ public class FlowableConcatMapSingleTest extends RxJavaTest {
                                     @Override
                                     protected void subscribeActual(
                                             SingleObserver<? super Integer> observer) {
-                                        observer.onSubscribe(Disposables.empty());
+                                        observer.onSubscribe(Disposable.empty());
                                         obs.set(observer);
                                     }
                             };
@@ -286,9 +290,9 @@ public class FlowableConcatMapSingleTest extends RxJavaTest {
 
     @Test
     public void cancelNoConcurrentClean() {
-        TestSubscriber<Integer> ts = new TestSubscriber<Integer>();
+        TestSubscriber<Integer> ts = new TestSubscriber<>();
         ConcatMapSingleSubscriber<Integer, Integer> operator =
-                new ConcatMapSingleSubscriber<Integer, Integer>(
+                new ConcatMapSingleSubscriber<>(
                         ts, Functions.justFunction(Single.<Integer>never()), 16, ErrorMode.IMMEDIATE);
 
         operator.onSubscribe(new BooleanSubscription());
@@ -381,5 +385,55 @@ public class FlowableConcatMapSingleTest extends RxJavaTest {
                 }, true, 2);
             }
         });
+    }
+
+    @Test
+    public void basicNonFused() {
+        Flowable.range(1, 5).hide()
+        .concatMapSingle(v -> Single.just(v).hide())
+        .test()
+        .assertResult(1, 2, 3, 4, 5);
+    }
+
+    @Test
+    public void basicSyncFused() {
+        Flowable.range(1, 5)
+        .concatMapSingle(v -> Single.just(v).hide())
+        .test()
+        .assertResult(1, 2, 3, 4, 5);
+    }
+
+    @Test
+    public void basicAsyncFused() {
+        UnicastProcessor<Integer> up = UnicastProcessor.create();
+        TestHelper.emit(up, 1, 2, 3, 4, 5);
+
+        up
+        .concatMapSingle(v -> Single.just(v).hide())
+        .test()
+        .assertResult(1, 2, 3, 4, 5);
+    }
+
+    @Test
+    public void basicFusionRejected() {
+        TestHelper.<Integer>rejectFlowableFusion()
+        .concatMapSingle(v -> Single.just(v).hide())
+        .test()
+        .assertEmpty();
+    }
+
+    @Test
+    public void fusedPollCrash() {
+        Flowable.range(1, 5)
+        .map(v -> {
+            if (v == 3) {
+                throw new TestException();
+            }
+            return v;
+        })
+        .compose(TestHelper.flowableStripBoundary())
+        .concatMapSingle(v -> Single.just(v).hide())
+        .test()
+        .assertFailure(TestException.class, 1, 2);
     }
 }

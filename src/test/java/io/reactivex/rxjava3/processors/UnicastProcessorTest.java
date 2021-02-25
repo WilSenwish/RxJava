@@ -16,16 +16,20 @@ package io.reactivex.rxjava3.processors;
 import static org.junit.Assert.*;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.Test;
 
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.disposables.Disposable;
-import io.reactivex.rxjava3.exceptions.TestException;
+import io.reactivex.rxjava3.exceptions.*;
+import io.reactivex.rxjava3.internal.functions.Functions;
 import io.reactivex.rxjava3.internal.fuseable.QueueFuseable;
 import io.reactivex.rxjava3.internal.subscriptions.BooleanSubscription;
+import io.reactivex.rxjava3.observers.TestObserver;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
+import io.reactivex.rxjava3.schedulers.Schedulers;
 import io.reactivex.rxjava3.subscribers.TestSubscriber;
 import io.reactivex.rxjava3.testsupport.*;
 
@@ -127,14 +131,14 @@ public class UnicastProcessorTest extends FlowableProcessorTest<Object> {
     public void onTerminateCalledWhenOnError() {
         final AtomicBoolean didRunOnTerminate = new AtomicBoolean();
 
-        UnicastProcessor<Integer> us = UnicastProcessor.create(Observable.bufferSize(), new Runnable() {
+        UnicastProcessor<Integer> up = UnicastProcessor.create(Observable.bufferSize(), new Runnable() {
             @Override public void run() {
                 didRunOnTerminate.set(true);
             }
         });
 
         assertFalse(didRunOnTerminate.get());
-        us.onError(new RuntimeException("some error"));
+        up.onError(new RuntimeException("some error"));
         assertTrue(didRunOnTerminate.get());
     }
 
@@ -142,14 +146,14 @@ public class UnicastProcessorTest extends FlowableProcessorTest<Object> {
     public void onTerminateCalledWhenOnComplete() {
         final AtomicBoolean didRunOnTerminate = new AtomicBoolean();
 
-        UnicastProcessor<Integer> us = UnicastProcessor.create(Observable.bufferSize(), new Runnable() {
+        UnicastProcessor<Integer> up = UnicastProcessor.create(Observable.bufferSize(), new Runnable() {
             @Override public void run() {
                 didRunOnTerminate.set(true);
             }
         });
 
         assertFalse(didRunOnTerminate.get());
-        us.onComplete();
+        up.onComplete();
         assertTrue(didRunOnTerminate.get());
     }
 
@@ -157,13 +161,13 @@ public class UnicastProcessorTest extends FlowableProcessorTest<Object> {
     public void onTerminateCalledWhenCanceled() {
         final AtomicBoolean didRunOnTerminate = new AtomicBoolean();
 
-        UnicastProcessor<Integer> us = UnicastProcessor.create(Observable.bufferSize(), new Runnable() {
+        UnicastProcessor<Integer> up = UnicastProcessor.create(Observable.bufferSize(), new Runnable() {
             @Override public void run() {
                 didRunOnTerminate.set(true);
             }
         });
 
-        final Disposable subscribe = us.subscribe();
+        final Disposable subscribe = up.subscribe();
 
         assertFalse(didRunOnTerminate.get());
         subscribe.dispose();
@@ -264,7 +268,7 @@ public class UnicastProcessorTest extends FlowableProcessorTest<Object> {
     public void rejectSyncFusion() {
         UnicastProcessor<Object> p = UnicastProcessor.create();
 
-        TestSubscriberEx<Object> ts = new TestSubscriberEx<Object>().setInitialFusionMode(QueueFuseable.SYNC);
+        TestSubscriberEx<Object> ts = new TestSubscriberEx<>().setInitialFusionMode(QueueFuseable.SYNC);
 
         p.subscribe(ts);
 
@@ -298,7 +302,7 @@ public class UnicastProcessorTest extends FlowableProcessorTest<Object> {
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
             final UnicastProcessor<Object> p = UnicastProcessor.create();
 
-            final TestSubscriberEx<Object> ts = new TestSubscriberEx<Object>().setInitialFusionMode(QueueFuseable.ANY);
+            final TestSubscriberEx<Object> ts = new TestSubscriberEx<>().setInitialFusionMode(QueueFuseable.ANY);
 
             p.subscribe(ts);
 
@@ -323,22 +327,22 @@ public class UnicastProcessorTest extends FlowableProcessorTest<Object> {
     @Test
     public void subscribeRace() {
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
-            final UnicastProcessor<Integer> us = UnicastProcessor.create();
+            final UnicastProcessor<Integer> up = UnicastProcessor.create();
 
-            final TestSubscriberEx<Integer> ts1 = new TestSubscriberEx<Integer>();
-            final TestSubscriberEx<Integer> ts2 = new TestSubscriberEx<Integer>();
+            final TestSubscriberEx<Integer> ts1 = new TestSubscriberEx<>();
+            final TestSubscriberEx<Integer> ts2 = new TestSubscriberEx<>();
 
             Runnable r1 = new Runnable() {
                 @Override
                 public void run() {
-                    us.subscribe(ts1);
+                    up.subscribe(ts1);
                 }
             };
 
             Runnable r2 = new Runnable() {
                 @Override
                 public void run() {
-                    us.subscribe(ts2);
+                    up.subscribe(ts2);
                 }
             };
 
@@ -357,67 +361,67 @@ public class UnicastProcessorTest extends FlowableProcessorTest<Object> {
 
     @Test
     public void hasObservers() {
-        UnicastProcessor<Integer> us = UnicastProcessor.create();
+        UnicastProcessor<Integer> up = UnicastProcessor.create();
 
-        assertFalse(us.hasSubscribers());
+        assertFalse(up.hasSubscribers());
 
-        TestSubscriber<Integer> ts = us.test();
+        TestSubscriber<Integer> ts = up.test();
 
-        assertTrue(us.hasSubscribers());
+        assertTrue(up.hasSubscribers());
 
         ts.cancel();
 
-        assertFalse(us.hasSubscribers());
+        assertFalse(up.hasSubscribers());
     }
 
     @Test
     public void drainFusedFailFast() {
-        UnicastProcessor<Integer> us = UnicastProcessor.create(false);
+        UnicastProcessor<Integer> up = UnicastProcessor.create(false);
 
-        TestSubscriberEx<Integer> ts = us.to(TestHelper.<Integer>testSubscriber(1, QueueFuseable.ANY, false));
+        TestSubscriberEx<Integer> ts = up.to(TestHelper.<Integer>testSubscriber(1, QueueFuseable.ANY, false));
 
-        us.done = true;
-        us.drainFused(ts);
+        up.done = true;
+        up.drainFused(ts);
 
         ts.assertResult();
     }
 
     @Test
     public void drainFusedFailFastEmpty() {
-        UnicastProcessor<Integer> us = UnicastProcessor.create(false);
+        UnicastProcessor<Integer> up = UnicastProcessor.create(false);
 
-        TestSubscriberEx<Integer> ts = us.to(TestHelper.<Integer>testSubscriber(1, QueueFuseable.ANY, false));
+        TestSubscriberEx<Integer> ts = up.to(TestHelper.<Integer>testSubscriber(1, QueueFuseable.ANY, false));
 
-        us.drainFused(ts);
+        up.drainFused(ts);
 
         ts.assertEmpty();
     }
 
     @Test
     public void checkTerminatedFailFastEmpty() {
-        UnicastProcessor<Integer> us = UnicastProcessor.create(false);
+        UnicastProcessor<Integer> up = UnicastProcessor.create(false);
 
-        TestSubscriberEx<Integer> ts = us.to(TestHelper.<Integer>testSubscriber(1, QueueFuseable.ANY, false));
+        TestSubscriberEx<Integer> ts = up.to(TestHelper.<Integer>testSubscriber(1, QueueFuseable.ANY, false));
 
-        us.checkTerminated(true, true, false, ts, us.queue);
+        up.checkTerminated(true, true, false, ts, up.queue);
 
         ts.assertEmpty();
     }
 
     @Test
     public void alreadyCancelled() {
-        UnicastProcessor<Integer> us = UnicastProcessor.create(false);
+        UnicastProcessor<Integer> up = UnicastProcessor.create(false);
 
-        us.test().cancel();
+        up.test().cancel();
 
         BooleanSubscription bs = new BooleanSubscription();
-        us.onSubscribe(bs);
+        up.onSubscribe(bs);
 
         assertTrue(bs.isCancelled());
 
         List<Throwable> errors = TestHelper.trackPluginErrors();
         try {
-            us.onError(new TestException());
+            up.onError(new TestException());
 
             TestHelper.assertUndeliverable(errors, 0, TestException.class);
         } finally {
@@ -427,9 +431,9 @@ public class UnicastProcessorTest extends FlowableProcessorTest<Object> {
 
     @Test
     public void unicastSubscriptionBadRequest() {
-        UnicastProcessor<Integer> us = UnicastProcessor.create(false);
+        UnicastProcessor<Integer> up = UnicastProcessor.create(false);
 
-        UnicastProcessor<Integer>.UnicastQueueSubscription usc = (UnicastProcessor<Integer>.UnicastQueueSubscription)us.wip;
+        UnicastProcessor<Integer>.UnicastQueueSubscription usc = (UnicastProcessor<Integer>.UnicastQueueSubscription)up.wip;
 
         List<Throwable> errors = TestHelper.trackPluginErrors();
         try {
@@ -437,6 +441,39 @@ public class UnicastProcessorTest extends FlowableProcessorTest<Object> {
             TestHelper.assertError(errors, 0, IllegalArgumentException.class);
         } finally {
             RxJavaPlugins.reset();
+        }
+    }
+
+    @Test
+    public void fusedNoConcurrentCleanDueToCancel() {
+        for (int j = 0; j < TestHelper.RACE_LONG_LOOPS; j++) {
+            List<Throwable> errors = TestHelper.trackPluginErrors();
+            try {
+                final UnicastProcessor<Integer> up = UnicastProcessor.create();
+
+                TestObserver<Integer> to = up
+                .observeOn(Schedulers.io())
+                .map(Functions.<Integer>identity())
+                .observeOn(Schedulers.single())
+                .firstOrError()
+                .test();
+
+                for (int i = 0; up.hasSubscribers(); i++) {
+                    up.onNext(i);
+                }
+
+                to
+                .awaitDone(5, TimeUnit.SECONDS)
+                ;
+
+                if (!errors.isEmpty()) {
+                    throw new CompositeException(errors);
+                }
+
+                to.assertResult(0);
+            } finally {
+                RxJavaPlugins.reset();
+            }
         }
     }
 }

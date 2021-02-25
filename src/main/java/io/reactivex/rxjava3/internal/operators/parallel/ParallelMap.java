@@ -18,11 +18,12 @@ import org.reactivestreams.*;
 import io.reactivex.rxjava3.core.FlowableSubscriber;
 import io.reactivex.rxjava3.exceptions.Exceptions;
 import io.reactivex.rxjava3.functions.Function;
-import io.reactivex.rxjava3.internal.functions.ObjectHelper;
 import io.reactivex.rxjava3.internal.fuseable.ConditionalSubscriber;
 import io.reactivex.rxjava3.internal.subscriptions.SubscriptionHelper;
 import io.reactivex.rxjava3.parallel.ParallelFlowable;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
+
+import java.util.Objects;
 
 /**
  * Maps each 'rail' of the source ParallelFlowable with a mapper function.
@@ -43,6 +44,8 @@ public final class ParallelMap<T, R> extends ParallelFlowable<R> {
 
     @Override
     public void subscribe(Subscriber<? super R>[] subscribers) {
+        subscribers = RxJavaPlugins.onSubscribe(this, subscribers);
+
         if (!validate(subscribers)) {
             return;
         }
@@ -110,7 +113,7 @@ public final class ParallelMap<T, R> extends ParallelFlowable<R> {
             R v;
 
             try {
-                v = ObjectHelper.requireNonNull(mapper.apply(t), "The mapper returned a null value");
+                v = Objects.requireNonNull(mapper.apply(t), "The mapper returned a null value");
             } catch (Throwable ex) {
                 Exceptions.throwIfFatal(ex);
                 cancel();
@@ -183,7 +186,7 @@ public final class ParallelMap<T, R> extends ParallelFlowable<R> {
             R v;
 
             try {
-                v = ObjectHelper.requireNonNull(mapper.apply(t), "The mapper returned a null value");
+                v = Objects.requireNonNull(mapper.apply(t), "The mapper returned a null value");
             } catch (Throwable ex) {
                 Exceptions.throwIfFatal(ex);
                 cancel();
@@ -202,7 +205,7 @@ public final class ParallelMap<T, R> extends ParallelFlowable<R> {
             R v;
 
             try {
-                v = ObjectHelper.requireNonNull(mapper.apply(t), "The mapper returned a null value");
+                v = Objects.requireNonNull(mapper.apply(t), "The mapper returned a null value");
             } catch (Throwable ex) {
                 Exceptions.throwIfFatal(ex);
                 cancel();

@@ -16,8 +16,7 @@ package io.reactivex.rxjava3.internal.schedulers;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
-import io.reactivex.rxjava3.disposables.Disposable;
-import io.reactivex.rxjava3.internal.disposables.DisposableContainer;
+import io.reactivex.rxjava3.disposables.*;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 
 public final class ScheduledRunnable extends AtomicReferenceArray<Object>
@@ -67,9 +66,9 @@ implements Runnable, Callable<Object>, Disposable {
             } catch (Throwable e) {
                 // Exceptions.throwIfFatal(e); nowhere to go
                 RxJavaPlugins.onError(e);
+                throw e;
             }
         } finally {
-            lazySet(THREAD_INDEX, null);
             Object o = get(PARENT_INDEX);
             if (o != PARENT_DISPOSED && compareAndSet(PARENT_INDEX, o, DONE) && o != null) {
                 ((DisposableContainer)o).delete(this);
@@ -81,6 +80,7 @@ implements Runnable, Callable<Object>, Disposable {
                     break;
                 }
             }
+            lazySet(THREAD_INDEX, null);
         }
     }
 
@@ -136,5 +136,27 @@ implements Runnable, Callable<Object>, Disposable {
     public boolean isDisposed() {
         Object o = get(PARENT_INDEX);
         return o == PARENT_DISPOSED || o == DONE;
+    }
+
+    @Override
+    public String toString() {
+        String state;
+        Object o = get(FUTURE_INDEX);
+        if (o == DONE) {
+            state = "Finished";
+        } else if (o == SYNC_DISPOSED) {
+            state = "Disposed(Sync)";
+        } else if (o == ASYNC_DISPOSED) {
+            state = "Disposed(Async)";
+        } else {
+            o = get(THREAD_INDEX);
+            if (o == null) {
+                state = "Waiting";
+            } else {
+                state = "Running on " + o;
+            }
+        }
+
+        return getClass().getSimpleName() + "[" + state + "]";
     }
 }

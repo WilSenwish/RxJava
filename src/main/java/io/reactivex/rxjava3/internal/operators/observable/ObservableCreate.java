@@ -33,7 +33,7 @@ public final class ObservableCreate<T> extends Observable<T> {
 
     @Override
     protected void subscribeActual(Observer<? super T> observer) {
-        CreateEmitter<T> parent = new CreateEmitter<T>(observer);
+        CreateEmitter<T> parent = new CreateEmitter<>(observer);
         observer.onSubscribe(parent);
 
         try {
@@ -113,7 +113,7 @@ public final class ObservableCreate<T> extends Observable<T> {
 
         @Override
         public ObservableEmitter<T> serialize() {
-            return new SerializedEmitter<T>(this);
+            return new SerializedEmitter<>(this);
         }
 
         @Override
@@ -154,12 +154,12 @@ public final class ObservableCreate<T> extends Observable<T> {
         SerializedEmitter(ObservableEmitter<T> emitter) {
             this.emitter = emitter;
             this.errors = new AtomicThrowable();
-            this.queue = new SpscLinkedArrayQueue<T>(16);
+            this.queue = new SpscLinkedArrayQueue<>(16);
         }
 
         @Override
         public void onNext(T t) {
-            if (emitter.isDisposed() || done) {
+            if (done || emitter.isDisposed()) {
                 return;
             }
             if (t == null) {
@@ -192,7 +192,7 @@ public final class ObservableCreate<T> extends Observable<T> {
 
         @Override
         public boolean tryOnError(Throwable t) {
-            if (emitter.isDisposed() || done) {
+            if (done || emitter.isDisposed()) {
                 return false;
             }
             if (t == null) {
@@ -208,7 +208,7 @@ public final class ObservableCreate<T> extends Observable<T> {
 
         @Override
         public void onComplete() {
-            if (emitter.isDisposed() || done) {
+            if (done || emitter.isDisposed()) {
                 return;
             }
             done = true;

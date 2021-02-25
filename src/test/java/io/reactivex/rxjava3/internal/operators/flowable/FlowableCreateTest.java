@@ -17,38 +17,27 @@ import static org.junit.Assert.*;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Test;
 import org.reactivestreams.*;
 
 import io.reactivex.rxjava3.core.*;
-import io.reactivex.rxjava3.disposables.*;
+import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.exceptions.TestException;
 import io.reactivex.rxjava3.functions.Cancellable;
 import io.reactivex.rxjava3.internal.subscriptions.BooleanSubscription;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
+import io.reactivex.rxjava3.subscribers.TestSubscriber;
 import io.reactivex.rxjava3.testsupport.*;
 
 public class FlowableCreateTest extends RxJavaTest {
-
-    @Test(expected = NullPointerException.class)
-    public void sourceNull() {
-        Flowable.create(null, BackpressureStrategy.BUFFER);
-    }
-
-    @Test(expected = NullPointerException.class)
-    public void modeNull() {
-        Flowable.create(new FlowableOnSubscribe<Object>() {
-            @Override
-            public void subscribe(FlowableEmitter<Object> s) throws Exception { }
-        }, null);
-    }
 
     @Test
     public void basic() {
         List<Throwable> errors = TestHelper.trackPluginErrors();
         try {
-            final Disposable d = Disposables.empty();
+            final Disposable d = Disposable.empty();
 
             Flowable.<Integer>create(new FlowableOnSubscribe<Integer>() {
                 @Override
@@ -81,8 +70,8 @@ public class FlowableCreateTest extends RxJavaTest {
     public void basicWithCancellable() {
         List<Throwable> errors = TestHelper.trackPluginErrors();
         try {
-            final Disposable d1 = Disposables.empty();
-            final Disposable d2 = Disposables.empty();
+            final Disposable d1 = Disposable.empty();
+            final Disposable d2 = Disposable.empty();
 
             Flowable.<Integer>create(new FlowableOnSubscribe<Integer>() {
                 @Override
@@ -122,7 +111,7 @@ public class FlowableCreateTest extends RxJavaTest {
     public void basicWithError() {
         List<Throwable> errors = TestHelper.trackPluginErrors();
         try {
-            final Disposable d = Disposables.empty();
+            final Disposable d = Disposable.empty();
 
             Flowable.<Integer>create(new FlowableOnSubscribe<Integer>() {
                 @Override
@@ -153,7 +142,7 @@ public class FlowableCreateTest extends RxJavaTest {
     public void basicSerialized() {
         List<Throwable> errors = TestHelper.trackPluginErrors();
         try {
-            final Disposable d = Disposables.empty();
+            final Disposable d = Disposable.empty();
 
             Flowable.<Integer>create(new FlowableOnSubscribe<Integer>() {
                 @Override
@@ -188,7 +177,7 @@ public class FlowableCreateTest extends RxJavaTest {
     public void basicWithErrorSerialized() {
         List<Throwable> errors = TestHelper.trackPluginErrors();
         try {
-            final Disposable d = Disposables.empty();
+            final Disposable d = Disposable.empty();
 
             Flowable.<Integer>create(new FlowableOnSubscribe<Integer>() {
                 @Override
@@ -767,18 +756,13 @@ public class FlowableCreateTest extends RxJavaTest {
         }
     }
 
-    @Test(expected = NullPointerException.class)
-    public void nullArgument() {
-        Flowable.create(null, BackpressureStrategy.MISSING);
-    }
-
     @Test
     public void onErrorCrash() {
         for (BackpressureStrategy m : BackpressureStrategy.values()) {
             Flowable.create(new FlowableOnSubscribe<Object>() {
                 @Override
                 public void subscribe(FlowableEmitter<Object> e) throws Exception {
-                    Disposable d = Disposables.empty();
+                    Disposable d = Disposable.empty();
                     e.setDisposable(d);
                     try {
                         e.onError(new IOException());
@@ -816,7 +800,7 @@ public class FlowableCreateTest extends RxJavaTest {
             Flowable.create(new FlowableOnSubscribe<Object>() {
                 @Override
                 public void subscribe(FlowableEmitter<Object> e) throws Exception {
-                    Disposable d = Disposables.empty();
+                    Disposable d = Disposable.empty();
                     e.setDisposable(d);
                     try {
                         e.onComplete();
@@ -1063,7 +1047,7 @@ public class FlowableCreateTest extends RxJavaTest {
     @Test
     public void emittersHasToString() {
         Map<BackpressureStrategy, Class<? extends FlowableEmitter>> emitterMap =
-                new HashMap<BackpressureStrategy, Class<? extends FlowableEmitter>>();
+                new HashMap<>();
 
         emitterMap.put(BackpressureStrategy.MISSING, FlowableCreate.MissingEmitter.class);
         emitterMap.put(BackpressureStrategy.ERROR, FlowableCreate.ErrorAsyncEmitter.class);
@@ -1080,5 +1064,67 @@ public class FlowableCreateTest extends RxJavaTest {
                 }
             }, entry.getKey()).test().assertEmpty();
         }
+    }
+
+    @Test
+    public void serializedMissingMoreWorkWithComplete() {
+        AtomicReference<FlowableEmitter<Integer>> ref = new AtomicReference<>();
+
+        Flowable.<Integer>create(emitter -> {
+            emitter = emitter.serialize();
+            ref.set(emitter);
+            assertEquals(Long.MAX_VALUE, emitter.requested());
+            emitter.onNext(1);
+        }, BackpressureStrategy.MISSING)
+        .doOnNext(v -> {
+            if (v == 1) {
+                ref.get().onNext(2);
+                ref.get().onComplete();
+            }
+        })
+        .test()
+        .assertResult(1, 2);
+    }
+
+    @Test
+    public void badRequest() {
+        TestHelper.assertBadRequestReported(Flowable.create(e -> { }, BackpressureStrategy.BUFFER));
+    }
+
+    @Test
+    public void tryOnErrorNull() {
+        Flowable.create(emitter -> emitter.tryOnError(null), BackpressureStrategy.MISSING)
+        .test()
+        .assertFailure(NullPointerException.class);
+    }
+
+    @Test
+    public void serializedCompleteOnNext() {
+        TestSubscriber<Integer> ts = new TestSubscriber<>();
+
+        Flowable.<Integer>create(emitter -> {
+            emitter = emitter.serialize();
+
+            emitter.onComplete();
+            emitter.onNext(1);
+        }, BackpressureStrategy.MISSING)
+        .subscribe(ts);
+
+        ts.assertResult();
+    }
+
+    @Test
+    public void serializedCancelOnNext() {
+        TestSubscriber<Integer> ts = new TestSubscriber<>();
+
+        Flowable.<Integer>create(emitter -> {
+            emitter = emitter.serialize();
+
+            ts.cancel();
+            emitter.onNext(1);
+        }, BackpressureStrategy.MISSING)
+        .subscribe(ts);
+
+        ts.assertEmpty();
     }
 }

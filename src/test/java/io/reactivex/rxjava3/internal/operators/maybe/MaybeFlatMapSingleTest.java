@@ -23,12 +23,6 @@ import io.reactivex.rxjava3.functions.Function;
 import io.reactivex.rxjava3.testsupport.TestHelper;
 
 public class MaybeFlatMapSingleTest extends RxJavaTest {
-    @Test(expected = NullPointerException.class)
-    public void flatMapSingleNull() {
-        Maybe.just(1)
-            .flatMapSingle(null);
-    }
-
     @Test
     public void flatMapSingleValue() {
         Maybe.just(1).flatMapSingle(new Function<Integer, SingleSource<Integer>>() {
@@ -40,6 +34,7 @@ public class MaybeFlatMapSingleTest extends RxJavaTest {
                 return Single.just(1);
             }
         })
+            .toSingle()
             .test()
             .assertResult(2);
     }
@@ -55,6 +50,7 @@ public class MaybeFlatMapSingleTest extends RxJavaTest {
                 return Single.just("1");
             }
         })
+            .toSingle()
             .test()
             .assertResult("2");
     }
@@ -66,6 +62,7 @@ public class MaybeFlatMapSingleTest extends RxJavaTest {
                 return null;
             }
         })
+        .toSingle()
         .to(TestHelper.<Integer>testConsumer())
             .assertNoValues()
             .assertError(NullPointerException.class)
@@ -79,6 +76,7 @@ public class MaybeFlatMapSingleTest extends RxJavaTest {
                 throw new RuntimeException("something went terribly wrong!");
             }
         })
+        .toSingle()
         .to(TestHelper.<Integer>testConsumer())
             .assertNoValues()
             .assertError(RuntimeException.class)
@@ -94,6 +92,7 @@ public class MaybeFlatMapSingleTest extends RxJavaTest {
                 return Single.just(new Object());
             }
         })
+            .toSingle()
             .test()
             .assertError(exception);
     }
@@ -105,6 +104,7 @@ public class MaybeFlatMapSingleTest extends RxJavaTest {
                 return Single.just(2);
             }
         })
+            .toSingle()
             .test()
             .assertNoValues()
             .assertError(NoSuchElementException.class);
@@ -117,7 +117,7 @@ public class MaybeFlatMapSingleTest extends RxJavaTest {
             public SingleSource<Integer> apply(final Integer integer) throws Exception {
                 return Single.just(2);
             }
-        }));
+        }).toSingle());
     }
 
     @Test
@@ -130,7 +130,7 @@ public class MaybeFlatMapSingleTest extends RxJavaTest {
                     public SingleSource<Integer> apply(final Integer integer) throws Exception {
                         return Single.just(2);
                     }
-                });
+                }).toSingle();
             }
         });
     }
@@ -144,6 +144,7 @@ public class MaybeFlatMapSingleTest extends RxJavaTest {
                         return Single.error(new TestException());
                     }
                 })
+        .toSingle()
         .test()
         .assertFailure(TestException.class);
     }

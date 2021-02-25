@@ -34,7 +34,7 @@ import io.reactivex.rxjava3.observers.TestObserver;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import io.reactivex.rxjava3.subjects.PublishSubject;
-import io.reactivex.rxjava3.testsupport.TestHelper;
+import io.reactivex.rxjava3.testsupport.*;
 
 public class ObservableTakeTest extends RxJavaTest {
 
@@ -111,11 +111,12 @@ public class ObservableTakeTest extends RxJavaTest {
     }
 
     @Test
+    @SuppressUndeliverable
     public void takeDoesntLeakErrors() {
         Observable<String> source = Observable.unsafeCreate(new ObservableSource<String>() {
             @Override
             public void subscribe(Observer<? super String> observer) {
-                observer.onSubscribe(Disposables.empty());
+                observer.onSubscribe(Disposable.empty());
                 observer.onNext("one");
                 observer.onError(new Throwable("test failed"));
             }
@@ -181,7 +182,7 @@ public class ObservableTakeTest extends RxJavaTest {
 
             @Override
             public void subscribe(Observer<? super Integer> observer) {
-                Disposable bs = Disposables.empty();
+                Disposable bs = Disposable.empty();
                 observer.onSubscribe(bs);
                 for (int i = 0; !bs.isDisposed(); i++) {
                     System.out.println("Emit: " + i);
@@ -214,7 +215,7 @@ public class ObservableTakeTest extends RxJavaTest {
 
         @Override
         public void subscribe(final Observer<? super String> observer) {
-            observer.onSubscribe(Disposables.empty());
+            observer.onSubscribe(Disposable.empty());
             System.out.println("TestObservable subscribed to ...");
             t = new Thread(new Runnable() {
 
@@ -243,7 +244,7 @@ public class ObservableTakeTest extends RxJavaTest {
 
         @Override
         public void subscribe(Observer<? super Long> op) {
-            Disposable d = Disposables.empty();
+            Disposable d = Disposable.empty();
             op.onSubscribe(d);
             long l = 1;
             while (!d.isDisposed()) {
@@ -257,7 +258,7 @@ public class ObservableTakeTest extends RxJavaTest {
     @Test
     public void takeObserveOn() {
         Observer<Object> o = TestHelper.mockObserver();
-        TestObserver<Object> to = new TestObserver<Object>(o);
+        TestObserver<Object> to = new TestObserver<>(o);
 
         INFINITE_OBSERVABLE
         .observeOn(Schedulers.newThread()).take(1).subscribe(to);
@@ -272,7 +273,7 @@ public class ObservableTakeTest extends RxJavaTest {
 
     @Test
     public void interrupt() throws InterruptedException {
-        final AtomicReference<Object> exception = new AtomicReference<Object>();
+        final AtomicReference<Object> exception = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
         Observable.just(1).subscribeOn(Schedulers.computation()).take(1)
         .subscribe(new Consumer<Integer>() {
@@ -317,7 +318,7 @@ public class ObservableTakeTest extends RxJavaTest {
     public void reentrantTake() {
         final PublishSubject<Integer> source = PublishSubject.create();
 
-        TestObserver<Integer> to = new TestObserver<Integer>();
+        TestObserver<Integer> to = new TestObserver<>();
 
         source.take(1).doOnNext(new Consumer<Integer>() {
             @Override

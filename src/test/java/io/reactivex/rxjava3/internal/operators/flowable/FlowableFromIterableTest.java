@@ -19,12 +19,13 @@ import static org.mockito.Mockito.*;
 
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.*;
 
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.reactivestreams.*;
 
+import io.reactivex.rxjava3.annotations.NonNull;
 import io.reactivex.rxjava3.core.*;
 import io.reactivex.rxjava3.exceptions.TestException;
 import io.reactivex.rxjava3.functions.Function;
@@ -37,11 +38,6 @@ import io.reactivex.rxjava3.subscribers.*;
 import io.reactivex.rxjava3.testsupport.*;
 
 public class FlowableFromIterableTest extends RxJavaTest {
-
-    @Test(expected = NullPointerException.class)
-    public void nullValue() {
-        Flowable.fromIterable(null);
-    }
 
     @Test
     public void listIterable() {
@@ -119,13 +115,13 @@ public class FlowableFromIterableTest extends RxJavaTest {
 
     @Test
     public void backpressureViaRequest() {
-        ArrayList<Integer> list = new ArrayList<Integer>(Flowable.bufferSize());
+        ArrayList<Integer> list = new ArrayList<>(Flowable.bufferSize());
         for (int i = 1; i <= Flowable.bufferSize() + 1; i++) {
             list.add(i);
         }
         Flowable<Integer> f = Flowable.fromIterable(list);
 
-        TestSubscriberEx<Integer> ts = new TestSubscriberEx<Integer>(0L);
+        TestSubscriberEx<Integer> ts = new TestSubscriberEx<>(0L);
 
         ts.assertNoValues();
         ts.request(1);
@@ -145,7 +141,7 @@ public class FlowableFromIterableTest extends RxJavaTest {
     public void noBackpressure() {
         Flowable<Integer> f = Flowable.fromIterable(Arrays.asList(1, 2, 3, 4, 5));
 
-        TestSubscriberEx<Integer> ts = new TestSubscriberEx<Integer>(0L);
+        TestSubscriberEx<Integer> ts = new TestSubscriberEx<>(0L);
 
         ts.assertNoValues();
         ts.request(Long.MAX_VALUE); // infinite
@@ -161,7 +157,7 @@ public class FlowableFromIterableTest extends RxJavaTest {
         Flowable<Integer> f = Flowable.fromIterable(Arrays.asList(1, 2, 3));
 
         for (int i = 0; i < 10; i++) {
-            TestSubscriber<Integer> ts = new TestSubscriber<Integer>();
+            TestSubscriber<Integer> ts = new TestSubscriber<>();
 
             f.subscribe(ts);
 
@@ -333,7 +329,7 @@ public class FlowableFromIterableTest extends RxJavaTest {
             }
         };
 
-        TestSubscriber<Integer> ts = new TestSubscriber<Integer>();
+        TestSubscriber<Integer> ts = new TestSubscriber<>();
 
         Flowable.fromIterable(it).subscribe(ts);
 
@@ -366,7 +362,7 @@ public class FlowableFromIterableTest extends RxJavaTest {
             }
         };
 
-        TestSubscriber<Integer> ts = new TestSubscriber<Integer>();
+        TestSubscriber<Integer> ts = new TestSubscriber<>();
 
         Flowable.fromIterable(it).subscribe(ts);
 
@@ -403,7 +399,7 @@ public class FlowableFromIterableTest extends RxJavaTest {
             }
         };
 
-        TestSubscriber<Integer> ts = new TestSubscriber<Integer>();
+        TestSubscriber<Integer> ts = new TestSubscriber<>();
 
         Flowable.fromIterable(it).subscribe(ts);
 
@@ -440,7 +436,7 @@ public class FlowableFromIterableTest extends RxJavaTest {
             }
         };
 
-        TestSubscriber<Integer> ts = new TestSubscriber<Integer>(5);
+        TestSubscriber<Integer> ts = new TestSubscriber<>(5);
 
         Flowable.fromIterable(it).subscribe(ts);
 
@@ -473,7 +469,7 @@ public class FlowableFromIterableTest extends RxJavaTest {
             }
         };
 
-        TestSubscriber<Integer> ts = new TestSubscriber<Integer>();
+        TestSubscriber<Integer> ts = new TestSubscriber<>();
 
         Flowable.fromIterable(it).subscribe(ts);
 
@@ -506,7 +502,7 @@ public class FlowableFromIterableTest extends RxJavaTest {
             }
         };
 
-        TestSubscriber<Integer> ts = new TestSubscriber<Integer>(5);
+        TestSubscriber<Integer> ts = new TestSubscriber<>(5);
 
         Flowable.fromIterable(it).subscribe(ts);
 
@@ -539,7 +535,7 @@ public class FlowableFromIterableTest extends RxJavaTest {
             }
         };
 
-        TestSubscriber<Integer> ts = new TestSubscriber<Integer>(5);
+        TestSubscriber<Integer> ts = new TestSubscriber<>(5);
         ts.cancel();
 
         Flowable.fromIterable(it).subscribe(ts);
@@ -552,7 +548,7 @@ public class FlowableFromIterableTest extends RxJavaTest {
 
     @Test
     public void fusionWithConcatMap() {
-        TestSubscriber<Integer> ts = new TestSubscriber<Integer>();
+        TestSubscriber<Integer> ts = new TestSubscriber<>();
 
         Flowable.fromIterable(Arrays.asList(1, 2, 3, 4)).concatMap(
         new Function<Integer, Flowable  <Integer>>() {
@@ -724,7 +720,7 @@ public class FlowableFromIterableTest extends RxJavaTest {
     @Test
     public void requestRaceConditional() {
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
-            final TestSubscriber<Integer> ts = new TestSubscriber<Integer>(0L);
+            final TestSubscriber<Integer> ts = new TestSubscriber<>(0L);
 
             Runnable r = new Runnable() {
                 @Override
@@ -744,7 +740,7 @@ public class FlowableFromIterableTest extends RxJavaTest {
     @Test
     public void requestRaceConditional2() {
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
-            final TestSubscriber<Integer> ts = new TestSubscriber<Integer>(0L);
+            final TestSubscriber<Integer> ts = new TestSubscriber<>(0L);
 
             Runnable r = new Runnable() {
                 @Override
@@ -764,7 +760,7 @@ public class FlowableFromIterableTest extends RxJavaTest {
     @Test
     public void requestCancelConditionalRace() {
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
-            final TestSubscriber<Integer> ts = new TestSubscriber<Integer>(0L);
+            final TestSubscriber<Integer> ts = new TestSubscriber<>(0L);
 
             Runnable r1 = new Runnable() {
                 @Override
@@ -791,7 +787,7 @@ public class FlowableFromIterableTest extends RxJavaTest {
     @Test
     public void requestCancelConditionalRace2() {
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
-            final TestSubscriber<Integer> ts = new TestSubscriber<Integer>(0L);
+            final TestSubscriber<Integer> ts = new TestSubscriber<>(0L);
 
             Runnable r1 = new Runnable() {
                 @Override
@@ -818,7 +814,7 @@ public class FlowableFromIterableTest extends RxJavaTest {
     @Test
     public void requestCancelRace() {
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
-            final TestSubscriber<Integer> ts = new TestSubscriber<Integer>(0L);
+            final TestSubscriber<Integer> ts = new TestSubscriber<>(0L);
 
             Runnable r1 = new Runnable() {
                 @Override
@@ -844,7 +840,7 @@ public class FlowableFromIterableTest extends RxJavaTest {
     @Test
     public void requestCancelRace2() {
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
-            final TestSubscriber<Integer> ts = new TestSubscriber<Integer>(0L);
+            final TestSubscriber<Integer> ts = new TestSubscriber<>(0L);
 
             Runnable r1 = new Runnable() {
                 @Override
@@ -933,7 +929,7 @@ public class FlowableFromIterableTest extends RxJavaTest {
 
     @Test
     public void hasNextCancels() {
-        final TestSubscriber<Integer> ts = new TestSubscriber<Integer>();
+        final TestSubscriber<Integer> ts = new TestSubscriber<>();
 
         Flowable.fromIterable(new Iterable<Integer>() {
             @Override
@@ -966,5 +962,260 @@ public class FlowableFromIterableTest extends RxJavaTest {
         ts.assertValue(1)
         .assertNoErrors()
         .assertNotComplete();
+    }
+
+    @Test
+    public void hasNextCancelsAndCompletesFastPath() {
+        final TestSubscriber<Integer> ts = new TestSubscriber<>();
+
+        Flowable.fromIterable(new Iterable<Integer>() {
+            @Override
+            public Iterator<Integer> iterator() {
+                return new Iterator<Integer>() {
+                    int count;
+
+                    @Override
+                    public boolean hasNext() {
+                        if (++count == 2) {
+                            ts.cancel();
+                            return false;
+                        }
+                        return true;
+                    }
+
+                    @Override
+                    public Integer next() {
+                        return 1;
+                    }
+
+                    @Override
+                    public void remove() {
+                        throw new UnsupportedOperationException();
+                    }
+                };
+            }
+        })
+        .subscribe(ts);
+
+        ts.assertValue(1)
+        .assertNoErrors()
+        .assertNotComplete();
+    }
+
+    @Test
+    public void hasNextCancelsAndCompletesSlowPath() {
+        final TestSubscriber<Integer> ts = new TestSubscriber<>(10L);
+
+        Flowable.fromIterable(new Iterable<Integer>() {
+            @Override
+            public Iterator<Integer> iterator() {
+                return new Iterator<Integer>() {
+                    int count;
+
+                    @Override
+                    public boolean hasNext() {
+                        if (++count == 2) {
+                            ts.cancel();
+                            return false;
+                        }
+                        return true;
+                    }
+
+                    @Override
+                    public Integer next() {
+                        return 1;
+                    }
+
+                    @Override
+                    public void remove() {
+                        throw new UnsupportedOperationException();
+                    }
+                };
+            }
+        })
+        .subscribe(ts);
+
+        ts.assertValue(1)
+        .assertNoErrors()
+        .assertNotComplete();
+    }
+
+    @Test
+    public void hasNextCancelsAndCompletesFastPathConditional() {
+        final TestSubscriber<Integer> ts = new TestSubscriber<>();
+
+        Flowable.fromIterable(new Iterable<Integer>() {
+            @Override
+            public Iterator<Integer> iterator() {
+                return new Iterator<Integer>() {
+                    int count;
+
+                    @Override
+                    public boolean hasNext() {
+                        if (++count == 2) {
+                            ts.cancel();
+                            return false;
+                        }
+                        return true;
+                    }
+
+                    @Override
+                    public Integer next() {
+                        return 1;
+                    }
+
+                    @Override
+                    public void remove() {
+                        throw new UnsupportedOperationException();
+                    }
+                };
+            }
+        })
+        .filter(v -> true)
+        .subscribe(ts);
+
+        ts.assertValue(1)
+        .assertNoErrors()
+        .assertNotComplete();
+    }
+
+    @Test
+    public void hasNextCancelsAndCompletesSlowPathConditional() {
+        final TestSubscriber<Integer> ts = new TestSubscriber<>(10);
+
+        Flowable.fromIterable(new Iterable<Integer>() {
+            @Override
+            public Iterator<Integer> iterator() {
+                return new Iterator<Integer>() {
+                    int count;
+
+                    @Override
+                    public boolean hasNext() {
+                        if (++count == 2) {
+                            ts.cancel();
+                            return false;
+                        }
+                        return true;
+                    }
+
+                    @Override
+                    public Integer next() {
+                        return 1;
+                    }
+
+                    @Override
+                    public void remove() {
+                        throw new UnsupportedOperationException();
+                    }
+                };
+            }
+        })
+        .filter(v -> true)
+        .subscribe(ts);
+
+        ts.assertValue(1)
+        .assertNoErrors()
+        .assertNotComplete();
+    }
+
+    @Test
+    public void fusedPoll() throws Throwable {
+        AtomicReference<SimpleQueue<?>> queue = new AtomicReference<>();
+
+        Flowable.fromIterable(Arrays.asList(1))
+        .subscribe(new FlowableSubscriber<Integer>() {
+            @Override
+            public void onSubscribe(@NonNull Subscription s) {
+                queue.set((SimpleQueue<?>)s);
+                ((QueueSubscription<?>)s).requestFusion(QueueFuseable.ANY);
+            }
+
+            @Override
+            public void onNext(Integer t) {
+            }
+
+            @Override
+            public void onError(Throwable t) {
+            }
+
+            @Override
+            public void onComplete() {
+            }
+        });
+
+        SimpleQueue<?> q = queue.get();
+
+        assertFalse(q.isEmpty());
+
+        assertEquals(1, q.poll());
+
+        assertTrue(q.isEmpty());
+
+        q.clear();
+
+        assertTrue(q.isEmpty());
+    }
+
+    @Test
+    public void disposeWhileIteratorNext() {
+        final TestSubscriber<Integer> ts = new TestSubscriber<>(10);
+
+        Flowable.fromIterable(new Iterable<Integer>() {
+            @Override
+            public Iterator<Integer> iterator() {
+                return new Iterator<Integer>() {
+                    @Override
+                    public boolean hasNext() {
+                        return true;
+                    }
+
+                    @Override
+                    public Integer next() {
+                        ts.cancel();
+                        return 1;
+                    }
+
+                    @Override
+                    public void remove() {
+                        throw new UnsupportedOperationException();
+                    }
+                };
+            }
+        })
+        .subscribe(ts);
+
+        ts.assertEmpty();
+    }
+
+    @Test
+    public void disposeWhileIteratorNextConditional() {
+        final TestSubscriber<Integer> ts = new TestSubscriber<>(10);
+
+        Flowable.fromIterable(new Iterable<Integer>() {
+            @Override
+            public Iterator<Integer> iterator() {
+                return new Iterator<Integer>() {
+                    @Override
+                    public boolean hasNext() {
+                        return true;
+                    }
+
+                    @Override
+                    public Integer next() {
+                        ts.cancel();
+                        return 1;
+                    }
+
+                    @Override
+                    public void remove() {
+                        throw new UnsupportedOperationException();
+                    }
+                };
+            }
+        })
+        .filter(v -> true)
+        .subscribe(ts);
+
+        ts.assertEmpty();
     }
 }

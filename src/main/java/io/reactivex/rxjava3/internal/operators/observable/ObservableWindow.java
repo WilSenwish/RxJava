@@ -36,9 +36,9 @@ public final class ObservableWindow<T> extends AbstractObservableWithUpstream<T,
     @Override
     public void subscribeActual(Observer<? super Observable<T>> t) {
         if (count == skip) {
-            source.subscribe(new WindowExactObserver<T>(t, count, capacityHint));
+            source.subscribe(new WindowExactObserver<>(t, count, capacityHint));
         } else {
-            source.subscribe(new WindowSkipObserver<T>(t, count, skip, capacityHint));
+            source.subscribe(new WindowSkipObserver<>(t, count, skip, capacityHint));
         }
     }
 
@@ -51,18 +51,20 @@ public final class ObservableWindow<T> extends AbstractObservableWithUpstream<T,
         final long count;
         final int capacityHint;
 
+        final AtomicBoolean cancelled;
+
         long size;
 
         Disposable upstream;
 
         UnicastSubject<T> window;
 
-        volatile boolean cancelled;
-
         WindowExactObserver(Observer<? super Observable<T>> actual, long count, int capacityHint) {
             this.downstream = actual;
             this.count = count;
             this.capacityHint = capacityHint;
+            this.cancelled = new AtomicBoolean();
+            this.lazySet(1);
         }
 
         @Override
@@ -77,21 +79,29 @@ public final class ObservableWindow<T> extends AbstractObservableWithUpstream<T,
         @Override
         public void onNext(T t) {
             UnicastSubject<T> w = window;
-            if (w == null && !cancelled) {
+            ObservableWindowSubscribeIntercept<T> intercept = null;
+            if (w == null && !cancelled.get()) {
+                getAndIncrement();
+
                 w = UnicastSubject.create(capacityHint, this);
                 window = w;
-                downstream.onNext(w);
+                intercept = new ObservableWindowSubscribeIntercept<>(w);
+                downstream.onNext(intercept);
             }
 
             if (w != null) {
                 w.onNext(t);
+
                 if (++size >= count) {
                     size = 0;
                     window = null;
                     w.onComplete();
-                    if (cancelled) {
-                        upstream.dispose();
-                    }
+                }
+
+                if (intercept != null && intercept.tryAbandon()) {
+                    window = null;
+                    w.onComplete();
+                    w = null;
                 }
             }
         }
@@ -118,23 +128,25 @@ public final class ObservableWindow<T> extends AbstractObservableWithUpstream<T,
 
         @Override
         public void dispose() {
-            cancelled = true;
+            if (cancelled.compareAndSet(false, true)) {
+                run();
+            }
         }
 
         @Override
         public boolean isDisposed() {
-            return cancelled;
+            return cancelled.get();
         }
 
         @Override
         public void run() {
-            if (cancelled) {
+            if (decrementAndGet() == 0) {
                 upstream.dispose();
             }
         }
     }
 
-    static final class WindowSkipObserver<T> extends AtomicBoolean
+    static final class WindowSkipObserver<T> extends AtomicInteger
     implements Observer<T>, Disposable, Runnable {
 
         private static final long serialVersionUID = 3366976432059579510L;
@@ -144,23 +156,23 @@ public final class ObservableWindow<T> extends AbstractObservableWithUpstream<T,
         final int capacityHint;
         final ArrayDeque<UnicastSubject<T>> windows;
 
-        long index;
+        final AtomicBoolean cancelled;
 
-        volatile boolean cancelled;
+        long index;
 
         /** Counts how many elements were emitted to the very first window in windows. */
         long firstEmission;
 
         Disposable upstream;
 
-        final AtomicInteger wip = new AtomicInteger();
-
         WindowSkipObserver(Observer<? super Observable<T>> actual, long count, long skip, int capacityHint) {
             this.downstream = actual;
             this.count = count;
             this.skip = skip;
             this.capacityHint = capacityHint;
-            this.windows = new ArrayDeque<UnicastSubject<T>>();
+            this.windows = new ArrayDeque<>();
+            this.cancelled = new AtomicBoolean();
+            this.lazySet(1);
         }
 
         @Override
@@ -180,11 +192,14 @@ public final class ObservableWindow<T> extends AbstractObservableWithUpstream<T,
 
             long s = skip;
 
-            if (i % s == 0 && !cancelled) {
-                wip.getAndIncrement();
+            ObservableWindowSubscribeIntercept<T> intercept = null;
+
+            if (i % s == 0 && !cancelled.get()) {
+                getAndIncrement();
                 UnicastSubject<T> w = UnicastSubject.create(capacityHint, this);
+                intercept = new ObservableWindowSubscribeIntercept<>(w);
                 ws.offer(w);
-                downstream.onNext(w);
+                downstream.onNext(intercept);
             }
 
             long c = firstEmission + 1;
@@ -195,8 +210,7 @@ public final class ObservableWindow<T> extends AbstractObservableWithUpstream<T,
 
             if (c >= count) {
                 ws.poll().onComplete();
-                if (ws.isEmpty() && cancelled) {
-                    this.upstream.dispose();
+                if (ws.isEmpty() && cancelled.get()) {
                     return;
                 }
                 firstEmission = c - s;
@@ -205,6 +219,10 @@ public final class ObservableWindow<T> extends AbstractObservableWithUpstream<T,
             }
 
             index = i + 1;
+
+            if (intercept != null && intercept.tryAbandon()) {
+                intercept.window.onComplete();
+            }
         }
 
         @Override
@@ -227,20 +245,20 @@ public final class ObservableWindow<T> extends AbstractObservableWithUpstream<T,
 
         @Override
         public void dispose() {
-            cancelled = true;
+            if (cancelled.compareAndSet(false, true)) {
+                run();
+            }
         }
 
         @Override
         public boolean isDisposed() {
-            return cancelled;
+            return cancelled.get();
         }
 
         @Override
         public void run() {
-            if (wip.decrementAndGet() == 0) {
-                if (cancelled) {
-                    upstream.dispose();
-                }
+            if (decrementAndGet() == 0) {
+                upstream.dispose();
             }
         }
     }

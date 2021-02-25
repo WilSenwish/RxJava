@@ -20,6 +20,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
+import io.reactivex.rxjava3.annotations.NonNull;
 import io.reactivex.rxjava3.core.*;
 import io.reactivex.rxjava3.exceptions.TestException;
 import io.reactivex.rxjava3.internal.subscriptions.BooleanSubscription;
@@ -31,8 +32,8 @@ public class SerializedProcessorTest extends RxJavaTest {
 
     @Test
     public void basic() {
-        SerializedProcessor<String> processor = new SerializedProcessor<String>(PublishProcessor.<String> create());
-        TestSubscriber<String> ts = new TestSubscriber<String>();
+        SerializedProcessor<String> processor = new SerializedProcessor<>(PublishProcessor.<String>create());
+        TestSubscriber<String> ts = new TestSubscriber<>();
         processor.subscribe(ts);
         processor.onNext("hello");
         processor.onComplete();
@@ -416,7 +417,7 @@ public class SerializedProcessorTest extends RxJavaTest {
 
     @Test
     public void onNextOnNextRace() {
-        Set<Integer> expectedSet = new HashSet<Integer>(Arrays.asList(1, 2));
+        Set<Integer> expectedSet = new HashSet<>(Arrays.asList(1, 2));
 
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
             final FlowableProcessor<Integer> s = PublishProcessor.<Integer>create().toSerialized();
@@ -445,7 +446,7 @@ public class SerializedProcessorTest extends RxJavaTest {
             .assertValueCount(2)
             ;
 
-            Set<Integer> actualSet = new HashSet<Integer>(ts.values());
+            Set<Integer> actualSet = new HashSet<>(ts.values());
             assertEquals("" + actualSet, expectedSet, actualSet);
         }
     }
@@ -663,5 +664,28 @@ public class SerializedProcessorTest extends RxJavaTest {
 
             ts.assertEmpty();
         }
+    }
+
+    @Test
+    public void onErrorQueued() {
+        FlowableProcessor<Integer> sp = PublishProcessor.<Integer>create().toSerialized();
+
+        TestSubscriber<Integer> ts = new TestSubscriber<Integer>() {
+            @Override
+            public void onNext(@NonNull Integer t) {
+                super.onNext(t);
+                if (t == 1) {
+                    sp.onNext(2);
+                    sp.onSubscribe(new BooleanSubscription());
+                    sp.onError(new TestException());
+                }
+            }
+        };
+
+        sp.subscribe(ts);
+
+        sp.onNext(1);
+
+        ts.assertFailure(TestException.class, 1); // errors skip ahead
     }
 }

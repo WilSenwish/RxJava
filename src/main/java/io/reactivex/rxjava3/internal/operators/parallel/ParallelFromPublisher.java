@@ -24,6 +24,7 @@ import io.reactivex.rxjava3.internal.queue.SpscArrayQueue;
 import io.reactivex.rxjava3.internal.subscriptions.SubscriptionHelper;
 import io.reactivex.rxjava3.internal.util.BackpressureHelper;
 import io.reactivex.rxjava3.parallel.ParallelFlowable;
+import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 
 /**
  * Dispatches the values from upstream in a round robin fashion to subscribers which are
@@ -51,11 +52,13 @@ public final class ParallelFromPublisher<T> extends ParallelFlowable<T> {
 
     @Override
     public void subscribe(Subscriber<? super T>[] subscribers) {
+        subscribers = RxJavaPlugins.onSubscribe(this, subscribers);
+
         if (!validate(subscribers)) {
             return;
         }
 
-        source.subscribe(new ParallelDispatcher<T>(subscribers, prefetch));
+        source.subscribe(new ParallelDispatcher<>(subscribers, prefetch));
     }
 
     static final class ParallelDispatcher<T>
@@ -137,7 +140,7 @@ public final class ParallelFromPublisher<T> extends ParallelFlowable<T> {
                     }
                 }
 
-                queue = new SpscArrayQueue<T>(prefetch);
+                queue = new SpscArrayQueue<>(prefetch);
 
                 setupSubscribers();
 
@@ -150,10 +153,6 @@ public final class ParallelFromPublisher<T> extends ParallelFlowable<T> {
             final int m = subs.length;
 
             for (int i = 0; i < m; i++) {
-                if (cancelled) {
-                    return;
-                }
-
                 subscriberCount.lazySet(i + 1);
 
                 subs[i].onSubscribe(new RailSubscription(i, m));

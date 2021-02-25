@@ -31,20 +31,14 @@ public class SingleInternalHelperTest extends RxJavaTest {
 
     @Test
     public void noSuchElementCallableEnum() {
-        assertEquals(1, SingleInternalHelper.NoSuchElementCallable.values().length);
-        assertNotNull(SingleInternalHelper.NoSuchElementCallable.valueOf("INSTANCE"));
+        assertEquals(1, SingleInternalHelper.NoSuchElementSupplier.values().length);
+        assertNotNull(SingleInternalHelper.NoSuchElementSupplier.valueOf("INSTANCE"));
     }
 
     @Test
     public void toFlowableEnum() {
         assertEquals(1, SingleInternalHelper.ToFlowable.values().length);
         assertNotNull(SingleInternalHelper.ToFlowable.valueOf("INSTANCE"));
-    }
-
-    @Test
-    public void toObservableEnum() {
-        assertEquals(1, SingleInternalHelper.ToObservable.values().length);
-        assertNotNull(SingleInternalHelper.ToObservable.valueOf("INSTANCE"));
     }
 
     @Test

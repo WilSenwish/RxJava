@@ -29,7 +29,7 @@ import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.exceptions.TestException;
 import io.reactivex.rxjava3.functions.*;
 import io.reactivex.rxjava3.observers.*;
-import io.reactivex.rxjava3.testsupport.TestHelper;
+import io.reactivex.rxjava3.testsupport.*;
 
 public class PublishSubjectTest extends SubjectTest<Integer> {
 
@@ -39,6 +39,7 @@ public class PublishSubjectTest extends SubjectTest<Integer> {
     }
 
     @Test
+    @SuppressUndeliverable
     public void completed() {
         PublishSubject<String> subject = PublishSubject.create();
 
@@ -68,7 +69,7 @@ public class PublishSubjectTest extends SubjectTest<Integer> {
         Observer<Object> observerB = TestHelper.mockObserver();
         Observer<Object> observerC = TestHelper.mockObserver();
 
-        TestObserver<Object> to = new TestObserver<Object>(observerA);
+        TestObserver<Object> to = new TestObserver<>(observerA);
 
         channel.subscribe(to);
         channel.subscribe(observerB);
@@ -112,6 +113,7 @@ public class PublishSubjectTest extends SubjectTest<Integer> {
     }
 
     @Test
+    @SuppressUndeliverable
     public void error() {
         PublishSubject<String> subject = PublishSubject.create();
 
@@ -177,7 +179,7 @@ public class PublishSubjectTest extends SubjectTest<Integer> {
         PublishSubject<String> subject = PublishSubject.create();
 
         Observer<String> observer = TestHelper.mockObserver();
-        TestObserver<String> to = new TestObserver<String>(observer);
+        TestObserver<String> to = new TestObserver<>(observer);
         subject.subscribe(to);
 
         subject.onNext("one");
@@ -212,7 +214,7 @@ public class PublishSubjectTest extends SubjectTest<Integer> {
         final AtomicInteger countChildren = new AtomicInteger();
         final AtomicInteger countTotal = new AtomicInteger();
 
-        final ArrayList<String> list = new ArrayList<String>();
+        final ArrayList<String> list = new ArrayList<>();
 
         s.flatMap(new Function<Integer, Observable<String>>() {
 
@@ -263,7 +265,7 @@ public class PublishSubjectTest extends SubjectTest<Integer> {
         final PublishSubject<Integer> ps = PublishSubject.create();
 
         Observer<Integer> o1 = TestHelper.mockObserver();
-        TestObserver<Integer> to = new TestObserver<Integer>(o1);
+        TestObserver<Integer> to = new TestObserver<>(o1);
         ps.subscribe(to);
 
         // emit
@@ -281,7 +283,7 @@ public class PublishSubjectTest extends SubjectTest<Integer> {
         ps.onNext(2);
 
         Observer<Integer> o2 = TestHelper.mockObserver();
-        TestObserver<Integer> to2 = new TestObserver<Integer>(o2);
+        TestObserver<Integer> to2 = new TestObserver<>(o2);
         ps.subscribe(to2);
 
         // emit
@@ -392,7 +394,7 @@ public class PublishSubjectTest extends SubjectTest<Integer> {
 
     @Test
     public void crossCancel() {
-        final TestObserver<Integer> to1 = new TestObserver<Integer>();
+        final TestObserver<Integer> to1 = new TestObserver<>();
         TestObserver<Integer> to2 = new TestObserver<Integer>() {
             @Override
             public void onNext(Integer t) {
@@ -414,8 +416,9 @@ public class PublishSubjectTest extends SubjectTest<Integer> {
     }
 
     @Test
+    @SuppressUndeliverable
     public void crossCancelOnError() {
-        final TestObserver<Integer> to1 = new TestObserver<Integer>();
+        final TestObserver<Integer> to1 = new TestObserver<>();
         TestObserver<Integer> to2 = new TestObserver<Integer>() {
             @Override
             public void onError(Throwable t) {
@@ -438,7 +441,7 @@ public class PublishSubjectTest extends SubjectTest<Integer> {
 
     @Test
     public void crossCancelOnComplete() {
-        final TestObserver<Integer> to1 = new TestObserver<Integer>();
+        final TestObserver<Integer> to1 = new TestObserver<>();
         TestObserver<Integer> to2 = new TestObserver<Integer>() {
             @Override
             public void onComplete() {
@@ -572,7 +575,7 @@ public class PublishSubjectTest extends SubjectTest<Integer> {
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
             final PublishSubject<Integer> ps = PublishSubject.create();
 
-            final TestObserver<Integer> to = new TestObserver<Integer>();
+            final TestObserver<Integer> to = new TestObserver<>();
 
             Runnable r1 = new Runnable() {
                 @Override

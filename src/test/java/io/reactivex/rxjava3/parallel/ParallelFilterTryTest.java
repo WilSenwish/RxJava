@@ -192,7 +192,6 @@ public class ParallelFilterTryTest extends RxJavaTest implements Consumer<Object
         .assertResult(1);
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void filterFailHandlerThrows() {
         TestSubscriberEx<Integer> ts = Flowable.range(0, 2)
@@ -327,7 +326,6 @@ public class ParallelFilterTryTest extends RxJavaTest implements Consumer<Object
         .assertResult(1);
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void filterFailHandlerThrowsConditional() {
         TestSubscriberEx<Integer> ts = Flowable.range(0, 2)
@@ -374,5 +372,46 @@ public class ParallelFilterTryTest extends RxJavaTest implements Consumer<Object
         } finally {
             RxJavaPlugins.reset();
         }
+    }
+
+    @Test
+    public void doubleOnSubscribe() {
+        TestHelper.checkDoubleOnSubscribeFlowable(f ->
+            ParallelFlowable.fromArray(f)
+            .filter(v -> true, ParallelFailureHandling.SKIP)
+            .sequential()
+        );
+    }
+
+    @Test
+    public void doubleOnSubscribeConditional() {
+        TestHelper.checkDoubleOnSubscribeFlowable(f ->
+            ParallelFlowable.fromArray(f)
+            .filter(v -> true, ParallelFailureHandling.SKIP)
+            .filter(v -> true, ParallelFailureHandling.SKIP)
+            .sequential()
+        );
+    }
+
+    @Test
+    public void conditionalFalseTrue() {
+        Flowable.just(1)
+        .parallel()
+        .filter(v -> false, ParallelFailureHandling.SKIP)
+        .filter(v -> true, ParallelFailureHandling.SKIP)
+        .sequential()
+        .test()
+        .assertResult();
+    }
+
+    @Test
+    public void conditionalTrueFalse() {
+        Flowable.just(1)
+        .parallel()
+        .filter(v -> true, ParallelFailureHandling.SKIP)
+        .filter(v -> false, ParallelFailureHandling.SKIP)
+        .sequential()
+        .test()
+        .assertResult();
     }
 }

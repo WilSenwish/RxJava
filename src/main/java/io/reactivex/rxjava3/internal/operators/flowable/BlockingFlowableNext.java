@@ -27,7 +27,7 @@ import io.reactivex.rxjava3.subscribers.DisposableSubscriber;
 /**
  * Returns an Iterable that blocks until the Observable emits another item, then returns that item.
  * <p>
- * <img width="640" height="490" src="https://github.com/ReactiveX/RxJava/wiki/images/rx-operators/B.next.png" alt="">
+ * <img width="640" height="490" src="https://github.com/ReactiveX/RxJava/wiki/images/rx-operators/B.next.v3.png" alt="">
  *
  * @param <T> the value type
  */
@@ -41,8 +41,8 @@ public final class BlockingFlowableNext<T> implements Iterable<T> {
 
     @Override
     public Iterator<T> iterator() {
-        NextSubscriber<T> nextSubscriber = new NextSubscriber<T>();
-        return new NextIterator<T>(source, nextSubscriber);
+        NextSubscriber<T> nextSubscriber = new NextSubscriber<>();
+        return new NextIterator<>(source, nextSubscriber);
     }
 
     // test needs to access the observer.waiting flag
@@ -99,11 +99,8 @@ public final class BlockingFlowableNext<T> implements Iterable<T> {
                 if (nextNotification.isOnComplete()) {
                     return false;
                 }
-                if (nextNotification.isOnError()) {
-                    error = nextNotification.getError();
-                    throw ExceptionHelper.wrapOrThrow(error);
-                }
-                throw new IllegalStateException("Should not reach here");
+                error = nextNotification.getError();
+                throw ExceptionHelper.wrapOrThrow(error);
             } catch (InterruptedException e) {
                 subscriber.dispose();
                 error = e;
@@ -133,7 +130,7 @@ public final class BlockingFlowableNext<T> implements Iterable<T> {
     }
 
     static final class NextSubscriber<T> extends DisposableSubscriber<Notification<T>> {
-        private final BlockingQueue<Notification<T>> buf = new ArrayBlockingQueue<Notification<T>>(1);
+        private final BlockingQueue<Notification<T>> buf = new ArrayBlockingQueue<>(1);
         final AtomicInteger waiting = new AtomicInteger();
 
         @Override

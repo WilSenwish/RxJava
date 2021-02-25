@@ -50,10 +50,10 @@ final Scheduler scheduler;
         Worker worker = scheduler.createWorker();
 
         if (s instanceof ConditionalSubscriber) {
-            source.subscribe(new ObserveOnConditionalSubscriber<T>(
+            source.subscribe(new ObserveOnConditionalSubscriber<>(
                     (ConditionalSubscriber<? super T>) s, worker, delayError, prefetch));
         } else {
-            source.subscribe(new ObserveOnSubscriber<T>(s, worker, delayError, prefetch));
+            source.subscribe(new ObserveOnSubscriber<>(s, worker, delayError, prefetch));
         }
     }
 
@@ -154,7 +154,7 @@ final Scheduler scheduler;
             upstream.cancel();
             worker.dispose();
 
-            if (getAndIncrement() == 0) {
+            if (!outputFused && getAndIncrement() == 0) {
                 queue.clear();
             }
         }
@@ -289,7 +289,7 @@ final Scheduler scheduler;
                     }
                 }
 
-                queue = new SpscArrayQueue<T>(prefetch);
+                queue = new SpscArrayQueue<>(prefetch);
 
                 downstream.onSubscribe(this);
 
@@ -350,15 +350,10 @@ final Scheduler scheduler;
                     return;
                 }
 
-                int w = get();
-                if (missed == w) {
-                    produced = e;
-                    missed = addAndGet(-missed);
-                    if (missed == 0) {
-                        break;
-                    }
-                } else {
-                    missed = w;
+                produced = e;
+                missed = addAndGet(-missed);
+                if (missed == 0) {
+                    break;
                 }
             }
         }
@@ -533,7 +528,7 @@ final Scheduler scheduler;
                     }
                 }
 
-                queue = new SpscArrayQueue<T>(prefetch);
+                queue = new SpscArrayQueue<>(prefetch);
 
                 downstream.onSubscribe(this);
 
@@ -593,15 +588,10 @@ final Scheduler scheduler;
                     return;
                 }
 
-                int w = get();
-                if (missed == w) {
-                    produced = e;
-                    missed = addAndGet(-missed);
-                    if (missed == 0) {
-                        break;
-                    }
-                } else {
-                    missed = w;
+                produced = e;
+                missed = addAndGet(-missed);
+                if (missed == 0) {
+                    break;
                 }
             }
         }
@@ -662,16 +652,11 @@ final Scheduler scheduler;
                     return;
                 }
 
-                int w = get();
-                if (missed == w) {
-                    produced = emitted;
-                    consumed = polled;
-                    missed = addAndGet(-missed);
-                    if (missed == 0) {
-                        break;
-                    }
-                } else {
-                    missed = w;
+                produced = emitted;
+                consumed = polled;
+                missed = addAndGet(-missed);
+                if (missed == 0) {
+                    break;
                 }
             }
 

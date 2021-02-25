@@ -13,6 +13,8 @@
 
 package io.reactivex.rxjava3.functions;
 
+import io.reactivex.rxjava3.annotations.NonNull;
+
 /**
  * A functional interface (callback) that provides a single value or
  * throws an exception.
@@ -22,7 +24,8 @@ package io.reactivex.rxjava3.functions;
  * @param <T> the value type returned
  * @since 3.0.0
  */
-public interface Supplier<T> {
+@FunctionalInterface
+public interface Supplier<@NonNull T> {
 
     /**
      * Produces a value or throws an exception.

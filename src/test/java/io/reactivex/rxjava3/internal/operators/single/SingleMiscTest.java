@@ -18,10 +18,10 @@ import static org.junit.Assert.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
 
+import io.reactivex.rxjava3.disposables.Disposable;
 import org.junit.Test;
 
 import io.reactivex.rxjava3.core.*;
-import io.reactivex.rxjava3.disposables.Disposables;
 import io.reactivex.rxjava3.exceptions.TestException;
 import io.reactivex.rxjava3.functions.*;
 import io.reactivex.rxjava3.schedulers.Schedulers;
@@ -51,7 +51,7 @@ public class SingleMiscTest extends RxJavaTest {
         Single.wrap(new SingleSource<Object>() {
             @Override
             public void subscribe(SingleObserver<? super Object> observer) {
-                observer.onSubscribe(Disposables.empty());
+                observer.onSubscribe(Disposable.empty());
                 observer.onSuccess(1);
             }
         })
@@ -280,11 +280,11 @@ public class SingleMiscTest extends RxJavaTest {
 
     @Test
     public void equals() {
-        Single.equals(Single.just(1), Single.just(1).hide())
+        Single.sequenceEqual(Single.just(1), Single.just(1).hide())
         .test()
         .assertResult(true);
 
-        Single.equals(Single.just(1), Single.just(2))
+        Single.sequenceEqual(Single.just(1), Single.just(2))
         .test()
         .assertResult(false);
     }

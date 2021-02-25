@@ -22,7 +22,7 @@ import org.junit.Test;
 import org.reactivestreams.Subscriber;
 
 import io.reactivex.rxjava3.core.*;
-import io.reactivex.rxjava3.disposables.*;
+import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.exceptions.*;
 import io.reactivex.rxjava3.functions.Function;
 import io.reactivex.rxjava3.internal.functions.Functions;
@@ -30,6 +30,7 @@ import io.reactivex.rxjava3.internal.subscriptions.BooleanSubscription;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 import io.reactivex.rxjava3.processors.PublishProcessor;
 import io.reactivex.rxjava3.schedulers.Schedulers;
+import io.reactivex.rxjava3.subjects.MaybeSubject;
 import io.reactivex.rxjava3.subscribers.TestSubscriber;
 import io.reactivex.rxjava3.testsupport.*;
 
@@ -442,7 +443,7 @@ public class FlowableFlatMapMaybeTest extends RxJavaTest {
             .flatMapMaybe(Functions.justFunction(new Maybe<Integer>() {
                 @Override
                 protected void subscribeActual(MaybeObserver<? super Integer> observer) {
-                    observer.onSubscribe(Disposables.empty());
+                    observer.onSubscribe(Disposable.empty());
                     observer.onError(new TestException("First"));
                     observer.onError(new TestException("Second"));
                 }
@@ -523,7 +524,7 @@ public class FlowableFlatMapMaybeTest extends RxJavaTest {
 
     @Test
     public void disposeInner() {
-        final TestSubscriber<Object> ts = new TestSubscriber<Object>();
+        final TestSubscriber<Object> ts = new TestSubscriber<>();
 
         Flowable.just(1).flatMapMaybe(new Function<Integer, MaybeSource<Object>>() {
             @Override
@@ -531,7 +532,7 @@ public class FlowableFlatMapMaybeTest extends RxJavaTest {
                 return new Maybe<Object>() {
                     @Override
                     protected void subscribeActual(MaybeObserver<? super Object> observer) {
-                        observer.onSubscribe(Disposables.empty());
+                        observer.onSubscribe(Disposable.empty());
 
                         assertFalse(((Disposable)observer).isDisposed());
 
@@ -640,5 +641,58 @@ public class FlowableFlatMapMaybeTest extends RxJavaTest {
                 }, true, 2);
             }
         });
+    }
+
+    @Test
+    public void badRequest() {
+        TestHelper.assertBadRequestReported(Flowable.never().flatMapMaybe(v -> Maybe.never()));
+    }
+
+    @Test
+    public void successRace() {
+        for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
+            MaybeSubject<Integer> ss1 = MaybeSubject.create();
+            MaybeSubject<Integer> ss2 = MaybeSubject.create();
+
+            TestSubscriber<Integer> ts = Flowable.just(ss1, ss2).flatMapMaybe(v -> v)
+            .test();
+
+            TestHelper.race(
+                    () -> ss1.onSuccess(1),
+                    () -> ss2.onSuccess(1)
+            );
+
+            ts.assertResult(1, 1);
+        }
+    }
+
+    @Test
+    public void successCompleteRace() {
+        for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
+            MaybeSubject<Integer> ss1 = MaybeSubject.create();
+            MaybeSubject<Integer> ss2 = MaybeSubject.create();
+
+            TestSubscriber<Integer> ts = Flowable.just(ss1, ss2).flatMapMaybe(v -> v)
+            .test();
+
+            TestHelper.race(
+                    () -> ss1.onSuccess(1),
+                    () -> ss2.onComplete()
+            );
+
+            ts.assertResult(1);
+        }
+    }
+
+    @Test
+    public void successShortcut() {
+        MaybeSubject<Integer> ss1 = MaybeSubject.create();
+
+        TestSubscriber<Integer> ts = Flowable.just(ss1).hide().flatMapMaybe(v -> v)
+        .test();
+
+        ss1.onSuccess(1);
+
+        ts.assertResult(1);
     }
 }

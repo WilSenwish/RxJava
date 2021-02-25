@@ -17,9 +17,9 @@ import static org.junit.Assert.*;
 
 import org.junit.Test;
 
-import io.reactivex.rxjava3.annotations.Nullable;
+import io.reactivex.rxjava3.annotations.*;
 import io.reactivex.rxjava3.core.RxJavaTest;
-import io.reactivex.rxjava3.internal.subscriptions.ScalarSubscription;
+import io.reactivex.rxjava3.internal.subscriptions.*;
 import io.reactivex.rxjava3.subscribers.TestSubscriber;
 import io.reactivex.rxjava3.testsupport.TestHelper;
 
@@ -27,7 +27,7 @@ public class BasicFuseableSubscriberTest extends RxJavaTest {
 
     @Test
     public void offerThrows() {
-        BasicFuseableSubscriber<Integer, Integer> fcs = new BasicFuseableSubscriber<Integer, Integer>(new TestSubscriber<Integer>(0L)) {
+        BasicFuseableSubscriber<Integer, Integer> fcs = new BasicFuseableSubscriber<Integer, Integer>(new TestSubscriber<>(0L)) {
 
             @Override
             public void onNext(Integer t) {
@@ -45,12 +45,44 @@ public class BasicFuseableSubscriberTest extends RxJavaTest {
             }
         };
 
-        fcs.onSubscribe(new ScalarSubscription<Integer>(fcs, 1));
+        fcs.onSubscribe(new ScalarSubscription<>(fcs, 1));
 
         TestHelper.assertNoOffer(fcs);
 
         assertFalse(fcs.isEmpty());
         fcs.clear();
         assertTrue(fcs.isEmpty());
+    }
+
+    @Test
+    public void implementationStopsOnSubscribe() {
+        TestSubscriber<Integer> ts = new TestSubscriber<>();
+        BasicFuseableSubscriber<Integer, Integer> bfs = new BasicFuseableSubscriber<Integer, Integer>(ts) {
+
+            @Override
+            protected boolean beforeDownstream() {
+                return false;
+            }
+
+            @Override
+            public void onNext(@NonNull Integer t) {
+                ts.onNext(t);
+            }
+
+            @Override
+            public int requestFusion(int mode) {
+                // TODO Auto-generated method stub
+                return 0;
+            }
+
+            @Override
+            public @Nullable Integer poll() throws Throwable {
+                return null;
+            }
+        };
+
+        bfs.onSubscribe(new BooleanSubscription());
+
+        assertFalse(ts.hasSubscription());
     }
 }

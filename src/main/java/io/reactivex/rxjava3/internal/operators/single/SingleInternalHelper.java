@@ -14,12 +14,10 @@
 package io.reactivex.rxjava3.internal.operators.single;
 
 import java.util.*;
-import java.util.concurrent.Callable;
 
 import org.reactivestreams.Publisher;
 
 import io.reactivex.rxjava3.core.*;
-import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.functions.*;
 
 /**
@@ -32,22 +30,17 @@ public final class SingleInternalHelper {
         throw new IllegalStateException("No instances!");
     }
 
-    enum NoSuchElementCallable implements Supplier<NoSuchElementException>, Callable<NoSuchElementException> {
+    enum NoSuchElementSupplier implements Supplier<NoSuchElementException> {
         INSTANCE;
 
         @Override
-        public NoSuchElementException call() throws Exception {
-            return new NoSuchElementException();
-        }
-
-        @Override
-        public NoSuchElementException get() throws Throwable {
+        public NoSuchElementException get() {
             return new NoSuchElementException();
         }
     }
 
-    public static <T> Supplier<NoSuchElementException> emptyThrower() {
-        return NoSuchElementCallable.INSTANCE;
+    public static Supplier<NoSuchElementException> emptyThrower() {
+        return NoSuchElementSupplier.INSTANCE;
     }
 
     @SuppressWarnings("rawtypes")
@@ -79,7 +72,7 @@ public final class SingleInternalHelper {
 
         @Override
         public Flowable<T> next() {
-            return new SingleToFlowable<T>(sit.next());
+            return new SingleToFlowable<>(sit.next());
         }
 
         @Override
@@ -98,26 +91,11 @@ public final class SingleInternalHelper {
 
         @Override
         public Iterator<Flowable<T>> iterator() {
-            return new ToFlowableIterator<T>(sources.iterator());
+            return new ToFlowableIterator<>(sources.iterator());
         }
     }
 
     public static <T> Iterable<? extends Flowable<T>> iterableToFlowable(final Iterable<? extends SingleSource<? extends T>> sources) {
-        return new ToFlowableIterable<T>(sources);
-    }
-
-    @SuppressWarnings("rawtypes")
-    enum ToObservable implements Function<SingleSource, Observable> {
-        INSTANCE;
-        @SuppressWarnings("unchecked")
-        @Override
-        public Observable apply(SingleSource v) {
-            return new SingleToObservable(v);
-        }
-    }
-
-    @SuppressWarnings({ "rawtypes", "unchecked" })
-    public static <T> Function<SingleSource<? extends T>, Observable<? extends T>> toObservable() {
-        return (Function)ToObservable.INSTANCE;
+        return new ToFlowableIterable<>(sources);
     }
 }

@@ -29,16 +29,11 @@ import io.reactivex.rxjava3.testsupport.TestHelper;
 
 public class CompletableCreateTest extends RxJavaTest {
 
-    @Test(expected = NullPointerException.class)
-    public void nullArgument() {
-        Completable.create(null);
-    }
-
     @Test
     public void basic() {
         List<Throwable> errors = TestHelper.trackPluginErrors();
         try {
-            final Disposable d = Disposables.empty();
+            final Disposable d = Disposable.empty();
 
             Completable.create(new CompletableOnSubscribe() {
                 @Override
@@ -65,8 +60,8 @@ public class CompletableCreateTest extends RxJavaTest {
     public void basicWithCancellable() {
         List<Throwable> errors = TestHelper.trackPluginErrors();
         try {
-            final Disposable d1 = Disposables.empty();
-            final Disposable d2 = Disposables.empty();
+            final Disposable d1 = Disposable.empty();
+            final Disposable d2 = Disposable.empty();
 
             Completable.create(new CompletableOnSubscribe() {
                 @Override
@@ -100,7 +95,7 @@ public class CompletableCreateTest extends RxJavaTest {
     public void basicWithError() {
         List<Throwable> errors = TestHelper.trackPluginErrors();
         try {
-            final Disposable d = Disposables.empty();
+            final Disposable d = Disposable.empty();
 
             Completable.create(new CompletableOnSubscribe() {
                 @Override
@@ -162,7 +157,7 @@ public class CompletableCreateTest extends RxJavaTest {
         Completable.create(new CompletableOnSubscribe() {
             @Override
             public void subscribe(CompletableEmitter e) throws Exception {
-                Disposable d = Disposables.empty();
+                Disposable d = Disposable.empty();
                 e.setDisposable(d);
 
                 try {
@@ -199,7 +194,7 @@ public class CompletableCreateTest extends RxJavaTest {
         Completable.create(new CompletableOnSubscribe() {
             @Override
             public void subscribe(CompletableEmitter e) throws Exception {
-                Disposable d = Disposables.empty();
+                Disposable d = Disposable.empty();
                 e.setDisposable(d);
 
                 try {

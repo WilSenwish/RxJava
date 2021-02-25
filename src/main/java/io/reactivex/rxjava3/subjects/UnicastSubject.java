@@ -13,13 +13,14 @@
 
 package io.reactivex.rxjava3.subjects;
 
+import java.util.Objects;
 import java.util.concurrent.atomic.*;
 
 import io.reactivex.rxjava3.annotations.*;
 import io.reactivex.rxjava3.core.Observer;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.internal.disposables.EmptyDisposable;
-import io.reactivex.rxjava3.internal.functions.ObjectHelper;
+import io.reactivex.rxjava3.internal.functions.*;
 import io.reactivex.rxjava3.internal.fuseable.SimpleQueue;
 import io.reactivex.rxjava3.internal.observers.BasicIntQueueDisposable;
 import io.reactivex.rxjava3.internal.queue.SpscLinkedArrayQueue;
@@ -29,7 +30,7 @@ import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 /**
  * A Subject that queues up events until a single {@link Observer} subscribes to it, replays
  * those events to it until the {@code Observer} catches up and then switches to relaying events live to
- * this single {@code Observer} until this {@code UnicastSubject} terminates or the {@code Observer} unsubscribes.
+ * this single {@code Observer} until this {@code UnicastSubject} terminates or the {@code Observer} disposes.
  * <p>
  * <img width="640" height="370" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/UnicastSubject.png" alt="">
  * <p>
@@ -47,10 +48,10 @@ import io.reactivex.rxjava3.plugins.RxJavaPlugins;
  *     optionally delays an error it receives and replays it after the regular items have been emitted.</li>
  * <li>{@link #create(int, Runnable)} - creates an empty, unbounded {@code UnicastSubject}
  *     with a hint about how many <b>total</b> items one expects to retain and a callback that will be
- *     called exactly once when the {@code UnicastSubject} gets terminated or the single {@code Observer} unsubscribes.</li>
+ *     called exactly once when the {@code UnicastSubject} gets terminated or the single {@code Observer} disposes.</li>
  * <li>{@link #create(int, Runnable, boolean)} - creates an empty, unbounded {@code UnicastSubject}
  *     with a hint about how many <b>total</b> items one expects to retain and a callback that will be
- *     called exactly once when the {@code UnicastSubject} gets terminated or the single {@code Observer} unsubscribes
+ *     called exactly once when the {@code UnicastSubject} gets terminated or the single {@code Observer} disposes
  *     and optionally delays an error it receives and replays it after the regular items have been emitted.</li>
  * </ul>
  * <p>
@@ -179,7 +180,7 @@ public final class UnicastSubject<T> extends Subject<T> {
     @CheckReturnValue
     @NonNull
     public static <T> UnicastSubject<T> create() {
-        return new UnicastSubject<T>(bufferSize(), true);
+        return new UnicastSubject<>(bufferSize(), null, true);
     }
 
     /**
@@ -187,16 +188,19 @@ public final class UnicastSubject<T> extends Subject<T> {
      * @param <T> the value type
      * @param capacityHint the hint to size the internal unbounded buffer
      * @return an UnicastSubject instance
+     * @throws IllegalArgumentException if {@code capacityHint} is non-positive
      */
     @CheckReturnValue
     @NonNull
     public static <T> UnicastSubject<T> create(int capacityHint) {
-        return new UnicastSubject<T>(capacityHint, true);
+        ObjectHelper.verifyPositive(capacityHint, "capacityHint");
+        return new UnicastSubject<>(capacityHint, null, true);
     }
 
     /**
      * Creates an UnicastSubject with the given internal buffer capacity hint and a callback for
-     * the case when the single Subscriber cancels its subscription.
+     * the case when the single Subscriber cancels its subscription
+     * or the subject is terminated.
      *
      * <p>The callback, if not null, is called exactly once and
      * non-overlapped with any active replay.
@@ -205,16 +209,21 @@ public final class UnicastSubject<T> extends Subject<T> {
      * @param capacityHint the hint to size the internal unbounded buffer
      * @param onTerminate the callback to run when the Subject is terminated or cancelled, null not allowed
      * @return an UnicastSubject instance
+     * @throws NullPointerException if {@code onTerminate} is {@code null}
+     * @throws IllegalArgumentException if {@code capacityHint} is non-positive
      */
     @CheckReturnValue
     @NonNull
-    public static <T> UnicastSubject<T> create(int capacityHint, Runnable onTerminate) {
-        return new UnicastSubject<T>(capacityHint, onTerminate, true);
+    public static <T> UnicastSubject<T> create(int capacityHint, @NonNull Runnable onTerminate) {
+        ObjectHelper.verifyPositive(capacityHint, "capacityHint");
+        Objects.requireNonNull(onTerminate, "onTerminate");
+        return new UnicastSubject<>(capacityHint, onTerminate, true);
     }
 
     /**
      * Creates an UnicastSubject with the given internal buffer capacity hint, delay error flag and
-     * a callback for the case when the single Subscriber cancels its subscription.
+     * a callback for the case when the single Observer disposes its {@link Disposable}
+     * or the subject is terminated.
      *
      * <p>The callback, if not null, is called exactly once and
      * non-overlapped with any active replay.
@@ -224,12 +233,16 @@ public final class UnicastSubject<T> extends Subject<T> {
      * @param onTerminate the callback to run when the Subject is terminated or cancelled, null not allowed
      * @param delayError deliver pending onNext events before onError
      * @return an UnicastSubject instance
+     * @throws NullPointerException if {@code onTerminate} is {@code null}
+     * @throws IllegalArgumentException if {@code capacityHint} is non-positive
      * @since 2.2
      */
     @CheckReturnValue
     @NonNull
-    public static <T> UnicastSubject<T> create(int capacityHint, Runnable onTerminate, boolean delayError) {
-        return new UnicastSubject<T>(capacityHint, onTerminate, delayError);
+    public static <T> UnicastSubject<T> create(int capacityHint, @NonNull Runnable onTerminate, boolean delayError) {
+        ObjectHelper.verifyPositive(capacityHint, "capacityHint");
+        Objects.requireNonNull(onTerminate, "onTerminate");
+        return new UnicastSubject<>(capacityHint, onTerminate, delayError);
     }
 
     /**
@@ -246,35 +259,7 @@ public final class UnicastSubject<T> extends Subject<T> {
     @CheckReturnValue
     @NonNull
     public static <T> UnicastSubject<T> create(boolean delayError) {
-        return new UnicastSubject<T>(bufferSize(), delayError);
-    }
-
-    /**
-     * Creates an UnicastSubject with the given capacity hint and delay error flag.
-     * <p>History: 2.0.8 - experimental
-     * @param capacityHint the capacity hint for the internal, unbounded queue
-     * @param delayError deliver pending onNext events before onError
-     * @since 2.2
-     */
-    UnicastSubject(int capacityHint, boolean delayError) {
-        this.queue = new SpscLinkedArrayQueue<T>(ObjectHelper.verifyPositive(capacityHint, "capacityHint"));
-        this.onTerminate = new AtomicReference<Runnable>();
-        this.delayError = delayError;
-        this.downstream = new AtomicReference<Observer<? super T>>();
-        this.once = new AtomicBoolean();
-        this.wip = new UnicastQueueDisposable();
-    }
-
-    /**
-     * Creates an UnicastSubject with the given capacity hint and callback
-     * for when the Subject is terminated normally or its single Subscriber cancels.
-     * @param capacityHint the capacity hint for the internal, unbounded queue
-     * @param onTerminate the callback to run when the Subject is terminated or cancelled, null not allowed
-     * @since 2.0
-     *
-     * */
-    UnicastSubject(int capacityHint, Runnable onTerminate) {
-        this(capacityHint, onTerminate, true);
+        return new UnicastSubject<>(bufferSize(), null, delayError);
     }
 
     /**
@@ -287,10 +272,10 @@ public final class UnicastSubject<T> extends Subject<T> {
      * @since 2.2
      */
     UnicastSubject(int capacityHint, Runnable onTerminate, boolean delayError) {
-        this.queue = new SpscLinkedArrayQueue<T>(ObjectHelper.verifyPositive(capacityHint, "capacityHint"));
-        this.onTerminate = new AtomicReference<Runnable>(ObjectHelper.requireNonNull(onTerminate, "onTerminate"));
+        this.queue = new SpscLinkedArrayQueue<>(capacityHint);
+        this.onTerminate = new AtomicReference<>(onTerminate);
         this.delayError = delayError;
-        this.downstream = new AtomicReference<Observer<? super T>>();
+        this.downstream = new AtomicReference<>();
         this.once = new AtomicBoolean();
         this.wip = new UnicastQueueDisposable();
     }
@@ -418,7 +403,6 @@ public final class UnicastSubject<T> extends Subject<T> {
 
             if (disposed) {
                 downstream.lazySet(null);
-                q.clear();
                 return;
             }
             boolean d = done;
@@ -494,12 +478,14 @@ public final class UnicastSubject<T> extends Subject<T> {
     }
 
     @Override
+    @CheckReturnValue
     public boolean hasObservers() {
         return downstream.get() != null;
     }
 
     @Override
     @Nullable
+    @CheckReturnValue
     public Throwable getThrowable() {
         if (done) {
             return error;
@@ -508,11 +494,13 @@ public final class UnicastSubject<T> extends Subject<T> {
     }
 
     @Override
+    @CheckReturnValue
     public boolean hasThrowable() {
         return done && error != null;
     }
 
     @Override
+    @CheckReturnValue
     public boolean hasComplete() {
         return done && error == null;
     }
@@ -532,7 +520,7 @@ public final class UnicastSubject<T> extends Subject<T> {
 
         @Nullable
         @Override
-        public T poll() throws Exception {
+        public T poll() {
             return queue.poll();
         }
 
@@ -556,7 +544,9 @@ public final class UnicastSubject<T> extends Subject<T> {
                 downstream.lazySet(null);
                 if (wip.getAndIncrement() == 0) {
                     downstream.lazySet(null);
-                    queue.clear();
+                    if (!enableOperatorFusion) {
+                        queue.clear();
+                    }
                 }
             }
         }

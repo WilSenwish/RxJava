@@ -87,7 +87,7 @@ public class FlowableMergeWithSingleTest extends RxJavaTest {
 
     @Test
     public void normalBackpressured() {
-        final TestSubscriber<Integer> ts = new TestSubscriber<Integer>(0L);
+        final TestSubscriber<Integer> ts = new TestSubscriber<>(0L);
 
         Flowable.range(1, 5).mergeWith(
                 Single.just(100)
@@ -226,7 +226,7 @@ public class FlowableMergeWithSingleTest extends RxJavaTest {
             final PublishProcessor<Integer> pp = PublishProcessor.create();
             final SingleSubject<Integer> cs = SingleSubject.create();
 
-            final TestSubscriber<Integer> ts = pp.mergeWith(cs).subscribeWith(new TestSubscriber<Integer>(0));
+            final TestSubscriber<Integer> ts = pp.mergeWith(cs).subscribeWith(new TestSubscriber<>(0));
 
             Runnable r1 = new Runnable() {
                 @Override
@@ -255,7 +255,7 @@ public class FlowableMergeWithSingleTest extends RxJavaTest {
     public void onErrorMainOverflow() {
         List<Throwable> errors = TestHelper.trackPluginErrors();
         try {
-            final AtomicReference<Subscriber<?>> subscriber = new AtomicReference<Subscriber<?>>();
+            final AtomicReference<Subscriber<?>> subscriber = new AtomicReference<>();
             TestSubscriber<Integer> ts = new Flowable<Integer>() {
                 @Override
                 protected void subscribeActual(Subscriber<? super Integer> s) {
@@ -353,7 +353,7 @@ public class FlowableMergeWithSingleTest extends RxJavaTest {
         final SingleSubject<Integer> cs = SingleSubject.create();
 
         TestSubscriber<Integer> ts = pp.mergeWith(cs)
-                .limit(2)
+                .take(2)
                 .subscribeWith(new TestSubscriber<Integer>(2) {
             @Override
             public void onNext(Integer t) {
@@ -443,5 +443,23 @@ public class FlowableMergeWithSingleTest extends RxJavaTest {
                 return upstream.mergeWith(Single.just(1).hide());
             }
         });
+    }
+
+    @Test
+    public void drainMoreWorkBeforeCancel() {
+        SingleSubject<Integer> ss = SingleSubject.create();
+
+        TestSubscriber<Integer> ts = new TestSubscriber<>();
+
+        Flowable.range(1, 5).mergeWith(ss)
+        .doOnNext(v -> {
+            if (v == 1) {
+                ss.onSuccess(6);
+                ts.cancel();
+            }
+        })
+        .subscribe(ts);
+
+        ts.assertValuesOnly(1);
     }
 }

@@ -20,11 +20,11 @@ import static org.mockito.Mockito.*;
 
 import java.util.List;
 
+import io.reactivex.rxjava3.disposables.Disposable;
 import org.junit.*;
 import org.mockito.MockitoAnnotations;
 
 import io.reactivex.rxjava3.core.*;
-import io.reactivex.rxjava3.disposables.Disposables;
 import io.reactivex.rxjava3.exceptions.TestException;
 import io.reactivex.rxjava3.functions.*;
 import io.reactivex.rxjava3.internal.functions.Functions;
@@ -54,7 +54,7 @@ public class ObservableJoinTest extends RxJavaTest {
 
     @Before
     public void before() {
-        MockitoAnnotations.initMocks(this);
+        MockitoAnnotations.openMocks(this);
     }
 
     @Test
@@ -387,7 +387,7 @@ public class ObservableJoinTest extends RxJavaTest {
             new Observable<Integer>() {
                 @Override
                 protected void subscribeActual(Observer<? super Integer> observer) {
-                    observer.onSubscribe(Disposables.empty());
+                    observer.onSubscribe(Disposable.empty());
                     observer.onError(new TestException("First"));
                     observer.onError(new TestException("Second"));
                 }
@@ -424,7 +424,7 @@ public class ObservableJoinTest extends RxJavaTest {
                         @Override
                         protected void subscribeActual(Observer<? super Integer> observer) {
                             o[0] = observer;
-                            observer.onSubscribe(Disposables.empty());
+                            observer.onSubscribe(Disposable.empty());
                             observer.onError(new TestException("First"));
                         }
                     }),
@@ -445,5 +445,28 @@ public class ObservableJoinTest extends RxJavaTest {
         } finally {
             RxJavaPlugins.reset();
         }
+    }
+
+    @Test
+    public void bothTerminateWithWorkRemaining() {
+        PublishSubject<Integer> ps1 = PublishSubject.create();
+        PublishSubject<Integer> ps2 = PublishSubject.create();
+
+        TestObserver<Integer> to = ps1.join(
+                ps2,
+                v -> Observable.never(),
+                v -> Observable.never(),
+                (a, b) -> a + b)
+        .doOnNext(v -> {
+            ps1.onComplete();
+            ps2.onNext(2);
+            ps2.onComplete();
+        })
+        .test();
+
+        ps1.onNext(0);
+        ps2.onNext(1);
+
+        to.assertComplete();
     }
 }

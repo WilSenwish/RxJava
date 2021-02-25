@@ -20,10 +20,10 @@ import static org.mockito.Mockito.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import io.reactivex.rxjava3.disposables.Disposable;
 import org.junit.*;
 
 import io.reactivex.rxjava3.core.*;
-import io.reactivex.rxjava3.disposables.Disposables;
 import io.reactivex.rxjava3.observers.DefaultObserver;
 import io.reactivex.rxjava3.testsupport.TestHelper;
 
@@ -78,7 +78,22 @@ public class ObservableSerializeTest extends RxJavaTest {
     }
 
     @Test
-    public void multiThreadedWithNPE() {
+    public void multiThreadedWithNPEFlaky() throws InterruptedException {
+        int max = 9;
+        for (int i = 0; i <= max; i++) {
+            try {
+                multiThreadedWithNPE();
+                return;
+            } catch (AssertionError ex) {
+                if (i == max) {
+                    throw ex;
+                }
+            }
+            Thread.sleep((long)(1000 * Math.random() + 100));
+        }
+    }
+
+    void multiThreadedWithNPE() {
         TestMultiThreadedObservable onSubscribe = new TestMultiThreadedObservable("one", "two", "three", null);
         Observable<String> w = Observable.unsafeCreate(onSubscribe);
 
@@ -107,7 +122,22 @@ public class ObservableSerializeTest extends RxJavaTest {
     }
 
     @Test
-    public void multiThreadedWithNPEinMiddle() {
+    public void multiThreadedWithNPEinMiddleFlaky() throws InterruptedException {
+        int max = 9;
+        for (int i = 0; i <= max; i++) {
+            try {
+                multiThreadedWithNPEinMiddle();
+                return;
+            } catch (AssertionError ex) {
+                if (i == max) {
+                    throw ex;
+                }
+            }
+            Thread.sleep((long)(1000 * Math.random() + 100));
+        }
+    }
+
+    void multiThreadedWithNPEinMiddle() {
         boolean lessThan9 = false;
         for (int i = 0; i < 3; i++) {
             TestMultiThreadedObservable onSubscribe = new TestMultiThreadedObservable("one", "two", "three", null, "four", "five", "six", "seven", "eight", "nine");
@@ -221,7 +251,7 @@ public class ObservableSerializeTest extends RxJavaTest {
 
         @Override
         public void subscribe(final Observer<? super String> observer) {
-            observer.onSubscribe(Disposables.empty());
+            observer.onSubscribe(Disposable.empty());
             System.out.println("TestSingleThreadedObservable subscribed to ...");
             t = new Thread(new Runnable() {
 
@@ -272,7 +302,7 @@ public class ObservableSerializeTest extends RxJavaTest {
 
         @Override
         public void subscribe(final Observer<? super String> observer) {
-            observer.onSubscribe(Disposables.empty());
+            observer.onSubscribe(Disposable.empty());
             System.out.println("TestMultiThreadedObservable subscribed to ...");
             final NullPointerException npe = new NullPointerException();
             t = new Thread(new Runnable() {

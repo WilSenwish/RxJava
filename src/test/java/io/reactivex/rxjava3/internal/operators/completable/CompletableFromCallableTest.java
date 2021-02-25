@@ -29,13 +29,9 @@ import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.exceptions.TestException;
 import io.reactivex.rxjava3.observers.TestObserver;
 import io.reactivex.rxjava3.schedulers.Schedulers;
-import io.reactivex.rxjava3.testsupport.TestHelper;
+import io.reactivex.rxjava3.testsupport.*;
 
 public class CompletableFromCallableTest extends RxJavaTest {
-    @Test(expected = NullPointerException.class)
-    public void fromCallableNull() {
-        Completable.fromCallable(null);
-    }
 
     @Test
     public void fromCallable() {
@@ -142,7 +138,7 @@ public class CompletableFromCallableTest extends RxJavaTest {
 
         Observer<Object> observer = TestHelper.mockObserver();
 
-        TestObserver<String> outer = new TestObserver<String>(observer);
+        TestObserver<String> outer = new TestObserver<>(observer);
 
         fromCallableObservable
                 .subscribeOn(Schedulers.computation())
@@ -166,6 +162,7 @@ public class CompletableFromCallableTest extends RxJavaTest {
     }
 
     @Test
+    @SuppressUndeliverable
     public void fromActionErrorsDisposed() {
         final AtomicInteger calls = new AtomicInteger();
         Completable.fromCallable(new Callable<Object>() {

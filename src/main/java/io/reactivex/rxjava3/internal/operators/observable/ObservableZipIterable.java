@@ -14,13 +14,13 @@
 package io.reactivex.rxjava3.internal.operators.observable;
 
 import java.util.Iterator;
+import java.util.Objects;
 
 import io.reactivex.rxjava3.core.*;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.exceptions.Exceptions;
 import io.reactivex.rxjava3.functions.BiFunction;
 import io.reactivex.rxjava3.internal.disposables.*;
-import io.reactivex.rxjava3.internal.functions.ObjectHelper;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 
 public final class ObservableZipIterable<T, U, V> extends Observable<V> {
@@ -41,7 +41,7 @@ public final class ObservableZipIterable<T, U, V> extends Observable<V> {
         Iterator<U> it;
 
         try {
-            it = ObjectHelper.requireNonNull(other.iterator(), "The iterator returned by other is null");
+            it = Objects.requireNonNull(other.iterator(), "The iterator returned by other is null");
         } catch (Throwable e) {
             Exceptions.throwIfFatal(e);
             EmptyDisposable.error(e, t);
@@ -109,19 +109,19 @@ public final class ObservableZipIterable<T, U, V> extends Observable<V> {
             U u;
 
             try {
-                u = ObjectHelper.requireNonNull(iterator.next(), "The iterator returned a null value");
+                u = Objects.requireNonNull(iterator.next(), "The iterator returned a null value");
             } catch (Throwable e) {
                 Exceptions.throwIfFatal(e);
-                error(e);
+                fail(e);
                 return;
             }
 
             V v;
             try {
-                v = ObjectHelper.requireNonNull(zipper.apply(t, u), "The zipper function returned a null value");
+                v = Objects.requireNonNull(zipper.apply(t, u), "The zipper function returned a null value");
             } catch (Throwable e) {
                 Exceptions.throwIfFatal(e);
-                error(e);
+                fail(e);
                 return;
             }
 
@@ -133,7 +133,7 @@ public final class ObservableZipIterable<T, U, V> extends Observable<V> {
                 b = iterator.hasNext();
             } catch (Throwable e) {
                 Exceptions.throwIfFatal(e);
-                error(e);
+                fail(e);
                 return;
             }
 
@@ -144,7 +144,7 @@ public final class ObservableZipIterable<T, U, V> extends Observable<V> {
             }
         }
 
-        void error(Throwable e) {
+        void fail(Throwable e) {
             done = true;
             upstream.dispose();
             downstream.onError(e);

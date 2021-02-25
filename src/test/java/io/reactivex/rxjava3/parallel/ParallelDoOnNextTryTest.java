@@ -189,7 +189,6 @@ public class ParallelDoOnNextTryTest extends RxJavaTest implements Consumer<Obje
         .assertResult(1);
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void doOnNextFailHandlerThrows() {
         TestSubscriberEx<Integer> ts = Flowable.range(0, 2)
@@ -336,7 +335,6 @@ public class ParallelDoOnNextTryTest extends RxJavaTest implements Consumer<Obje
         .assertResult(1);
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void doOnNextFailHandlerThrowsConditional() {
         TestSubscriberEx<Integer> ts = Flowable.range(0, 2)
@@ -385,5 +383,24 @@ public class ParallelDoOnNextTryTest extends RxJavaTest implements Consumer<Obje
         } finally {
             RxJavaPlugins.reset();
         }
+    }
+
+    @Test
+    public void doubleOnSubscribe() {
+        TestHelper.checkDoubleOnSubscribeFlowable(f ->
+            ParallelFlowable.fromArray(f)
+            .doOnNext(v -> { }, ParallelFailureHandling.SKIP)
+            .sequential()
+        );
+    }
+
+    @Test
+    public void doubleOnSubscribeConditional() {
+        TestHelper.checkDoubleOnSubscribeFlowable(f ->
+            ParallelFlowable.fromArray(f)
+            .doOnNext(v -> { }, ParallelFailureHandling.SKIP)
+            .filter(v -> true, ParallelFailureHandling.SKIP)
+            .sequential()
+        );
     }
 }

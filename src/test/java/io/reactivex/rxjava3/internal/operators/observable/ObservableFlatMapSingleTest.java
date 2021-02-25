@@ -21,14 +21,14 @@ import java.util.concurrent.*;
 import org.junit.Test;
 
 import io.reactivex.rxjava3.core.*;
-import io.reactivex.rxjava3.disposables.*;
+import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.exceptions.*;
 import io.reactivex.rxjava3.functions.Function;
 import io.reactivex.rxjava3.internal.functions.Functions;
 import io.reactivex.rxjava3.observers.TestObserver;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 import io.reactivex.rxjava3.schedulers.Schedulers;
-import io.reactivex.rxjava3.subjects.PublishSubject;
+import io.reactivex.rxjava3.subjects.*;
 import io.reactivex.rxjava3.testsupport.*;
 
 public class ObservableFlatMapSingleTest extends RxJavaTest {
@@ -274,7 +274,7 @@ public class ObservableFlatMapSingleTest extends RxJavaTest {
             new Observable<Integer>() {
                 @Override
                 protected void subscribeActual(Observer<? super Integer> observer) {
-                    observer.onSubscribe(Disposables.empty());
+                    observer.onSubscribe(Disposable.empty());
                     observer.onError(new TestException("First"));
                     observer.onError(new TestException("Second"));
                 }
@@ -297,7 +297,7 @@ public class ObservableFlatMapSingleTest extends RxJavaTest {
             .flatMapSingle(Functions.justFunction(new Single<Integer>() {
                 @Override
                 protected void subscribeActual(SingleObserver<? super Integer> observer) {
-                    observer.onSubscribe(Disposables.empty());
+                    observer.onSubscribe(Disposable.empty());
                     observer.onError(new TestException("First"));
                     observer.onError(new TestException("Second"));
                 }
@@ -344,7 +344,7 @@ public class ObservableFlatMapSingleTest extends RxJavaTest {
 
     @Test
     public void disposeInner() {
-        final TestObserver<Object> to = new TestObserver<Object>();
+        final TestObserver<Object> to = new TestObserver<>();
 
         Observable.just(1).flatMapSingle(new Function<Integer, SingleSource<Object>>() {
             @Override
@@ -352,7 +352,7 @@ public class ObservableFlatMapSingleTest extends RxJavaTest {
                 return new Single<Object>() {
                     @Override
                     protected void subscribeActual(SingleObserver<? super Object> observer) {
-                        observer.onSubscribe(Disposables.empty());
+                        observer.onSubscribe(Disposable.empty());
 
                         assertFalse(((Disposable)observer).isDisposed());
 
@@ -397,5 +397,70 @@ public class ObservableFlatMapSingleTest extends RxJavaTest {
                 }, true);
             }
         });
+    }
+
+    @Test
+    public void innerErrorOuterCompleteRace() {
+        TestException ex = new TestException();
+        for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
+            PublishSubject<Integer> ps1 = PublishSubject.create();
+            SingleSubject<Integer> ps2 = SingleSubject.create();
+
+            TestObserver<Integer> to = ps1.flatMapSingle(v -> ps2)
+            .test();
+
+            ps1.onNext(1);
+
+            TestHelper.race(
+                    () -> ps1.onComplete(),
+                    () -> ps2.onError(ex)
+            );
+
+            to.assertFailure(TestException.class);
+        }
+    }
+
+    @Test
+    public void cancelWhileMapping() throws Throwable {
+        for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
+            PublishSubject<Integer> ps1 = PublishSubject.create();
+
+            TestObserver<Integer> to = new TestObserver<>();
+            CountDownLatch cdl = new CountDownLatch(1);
+
+            ps1.flatMapSingle(v -> {
+                TestHelper.raceOther(() -> {
+                    to.dispose();
+                }, cdl);
+                return Single.just(1);
+            })
+            .subscribe(to);
+
+            ps1.onNext(1);
+
+            cdl.await();
+        }
+    }
+
+    @Test
+    public void onNextDrainCancel() {
+        SingleSubject<Integer> ss1 = SingleSubject.create();
+        SingleSubject<Integer> ss2 = SingleSubject.create();
+
+        TestObserver<Integer> to = new TestObserver<>();
+
+        Observable.just(1, 2)
+        .flatMapSingle(v -> v == 1 ? ss1 : ss2)
+        .doOnNext(v -> {
+            if (v == 1) {
+                ss2.onSuccess(2);
+                to.dispose();
+            }
+        })
+        .subscribe(to);
+
+        ss1.onSuccess(1);
+
+        to.assertValuesOnly(1);
     }
 }

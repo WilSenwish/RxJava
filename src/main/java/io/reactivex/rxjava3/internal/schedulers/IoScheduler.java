@@ -48,6 +48,10 @@ public final class IoScheduler extends Scheduler {
     /** The name of the system property for setting the thread priority for this Scheduler. */
     private static final String KEY_IO_PRIORITY = "rx3.io-priority";
 
+    /** The name of the system property for setting the release behaviour for this Scheduler. */
+    private static final String KEY_SCHEDULED_RELEASE = "rx3.io-scheduled-release";
+    static boolean USE_SCHEDULED_RELEASE;
+
     static final CachedWorkerPool NONE;
 
     static {
@@ -63,6 +67,8 @@ public final class IoScheduler extends Scheduler {
 
         EVICTOR_THREAD_FACTORY = new RxThreadFactory(EVICTOR_THREAD_NAME_PREFIX, priority);
 
+        USE_SCHEDULED_RELEASE = Boolean.getBoolean(KEY_SCHEDULED_RELEASE);
+
         NONE = new CachedWorkerPool(0, null, WORKER_THREAD_FACTORY);
         NONE.shutdown();
     }
@@ -77,7 +83,7 @@ public final class IoScheduler extends Scheduler {
 
         CachedWorkerPool(long keepAliveTime, TimeUnit unit, ThreadFactory threadFactory) {
             this.keepAliveTime = unit != null ? unit.toNanos(keepAliveTime) : 0L;
-            this.expiringWorkerQueue = new ConcurrentLinkedQueue<ThreadWorker>();
+            this.expiringWorkerQueue = new ConcurrentLinkedQueue<>();
             this.allWorkers = new CompositeDisposable();
             this.threadFactory = threadFactory;
 
@@ -93,7 +99,7 @@ public final class IoScheduler extends Scheduler {
 
         @Override
         public void run() {
-            evictExpiredWorkers();
+            evictExpiredWorkers(expiringWorkerQueue, allWorkers);
         }
 
         ThreadWorker get() {
@@ -120,7 +126,7 @@ public final class IoScheduler extends Scheduler {
             expiringWorkerQueue.offer(threadWorker);
         }
 
-        void evictExpiredWorkers() {
+        static void evictExpiredWorkers(ConcurrentLinkedQueue<ThreadWorker> expiringWorkerQueue, CompositeDisposable allWorkers) {
             if (!expiringWorkerQueue.isEmpty()) {
                 long currentTimestamp = now();
 
@@ -138,7 +144,7 @@ public final class IoScheduler extends Scheduler {
             }
         }
 
-        long now() {
+        static long now() {
             return System.nanoTime();
         }
 
@@ -164,7 +170,7 @@ public final class IoScheduler extends Scheduler {
      */
     public IoScheduler(ThreadFactory threadFactory) {
         this.threadFactory = threadFactory;
-        this.pool = new AtomicReference<CachedWorkerPool>(NONE);
+        this.pool = new AtomicReference<>(NONE);
         start();
     }
 
@@ -178,15 +184,9 @@ public final class IoScheduler extends Scheduler {
 
     @Override
     public void shutdown() {
-        for (;;) {
-            CachedWorkerPool curr = pool.get();
-            if (curr == NONE) {
-                return;
-            }
-            if (pool.compareAndSet(curr, NONE)) {
-                curr.shutdown();
-                return;
-            }
+        CachedWorkerPool curr = pool.getAndSet(NONE);
+        if (curr != NONE) {
+            curr.shutdown();
         }
     }
 
@@ -200,7 +200,7 @@ public final class IoScheduler extends Scheduler {
         return pool.get().allWorkers.size();
     }
 
-    static final class EventLoopWorker extends Scheduler.Worker {
+    static final class EventLoopWorker extends Scheduler.Worker implements Runnable {
         private final CompositeDisposable tasks;
         private final CachedWorkerPool pool;
         private final ThreadWorker threadWorker;
@@ -218,9 +218,18 @@ public final class IoScheduler extends Scheduler {
             if (once.compareAndSet(false, true)) {
                 tasks.dispose();
 
-                // releasing the pool should be the last action
-                pool.release(threadWorker);
+                if (USE_SCHEDULED_RELEASE) {
+                    threadWorker.scheduleActual(this, 0, TimeUnit.NANOSECONDS, null);
+                } else {
+                    // releasing the pool should be the last action
+                    pool.release(threadWorker);
+                }
             }
+        }
+
+        @Override
+        public void run() {
+            pool.release(threadWorker);
         }
 
         @Override
@@ -241,7 +250,8 @@ public final class IoScheduler extends Scheduler {
     }
 
     static final class ThreadWorker extends NewThreadWorker {
-        private long expirationTime;
+
+        long expirationTime;
 
         ThreadWorker(ThreadFactory threadFactory) {
             super(threadFactory);

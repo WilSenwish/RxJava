@@ -13,6 +13,7 @@
 
 package io.reactivex.rxjava3.internal.operators.single;
 
+import java.util.Objects;
 import java.util.concurrent.atomic.*;
 
 import org.reactivestreams.*;
@@ -21,14 +22,13 @@ import io.reactivex.rxjava3.core.*;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.exceptions.Exceptions;
 import io.reactivex.rxjava3.functions.Function;
-import io.reactivex.rxjava3.internal.functions.ObjectHelper;
 import io.reactivex.rxjava3.internal.subscriptions.SubscriptionHelper;
 
 /**
  * A Flowable that emits items based on applying a specified function to the item emitted by the
  * source Single, where that function returns a Publisher.
  * <p>
- * <img width="640" height="305" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/Single.flatMapPublisher.png" alt="">
+ * <img width="640" height="305" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/Single.flatMapPublisher.v3.png" alt="">
  * <dl>
  *  <dt><b>Backpressure:</b></dt>
  *  <dd>The returned {@code Flowable} honors the backpressure of the downstream consumer
@@ -56,7 +56,7 @@ public final class SingleFlatMapPublisher<T, R> extends Flowable<R> {
 
     @Override
     protected void subscribeActual(Subscriber<? super R> downstream) {
-        source.subscribe(new SingleFlatMapPublisherObserver<T, R>(downstream, mapper));
+        source.subscribe(new SingleFlatMapPublisherObserver<>(downstream, mapper));
     }
 
     static final class SingleFlatMapPublisherObserver<S, T> extends AtomicLong
@@ -73,7 +73,7 @@ public final class SingleFlatMapPublisher<T, R> extends Flowable<R> {
                 Function<? super S, ? extends Publisher<? extends T>> mapper) {
             this.downstream = actual;
             this.mapper = mapper;
-            this.parent = new AtomicReference<Subscription>();
+            this.parent = new AtomicReference<>();
         }
 
         @Override
@@ -86,13 +86,15 @@ public final class SingleFlatMapPublisher<T, R> extends Flowable<R> {
         public void onSuccess(S value) {
             Publisher<? extends T> f;
             try {
-                f = ObjectHelper.requireNonNull(mapper.apply(value), "the mapper returned a null Publisher");
+                f = Objects.requireNonNull(mapper.apply(value), "the mapper returned a null Publisher");
             } catch (Throwable e) {
                 Exceptions.throwIfFatal(e);
                 downstream.onError(e);
                 return;
             }
-            f.subscribe(this);
+            if (parent.get() != SubscriptionHelper.CANCELLED) {
+                f.subscribe(this);
+            }
         }
 
         @Override

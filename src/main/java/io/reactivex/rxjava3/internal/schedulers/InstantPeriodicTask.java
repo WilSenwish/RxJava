@@ -38,26 +38,28 @@ final class InstantPeriodicTask implements Callable<Void>, Disposable {
 
     Thread runner;
 
-    static final FutureTask<Void> CANCELLED = new FutureTask<Void>(Functions.EMPTY_RUNNABLE, null);
+    static final FutureTask<Void> CANCELLED = new FutureTask<>(Functions.EMPTY_RUNNABLE, null);
 
     InstantPeriodicTask(Runnable task, ExecutorService executor) {
         super();
         this.task = task;
-        this.first = new AtomicReference<Future<?>>();
-        this.rest = new AtomicReference<Future<?>>();
+        this.first = new AtomicReference<>();
+        this.rest = new AtomicReference<>();
         this.executor = executor;
     }
 
     @Override
-    public Void call() throws Exception {
+    public Void call() {
         runner = Thread.currentThread();
         try {
             task.run();
-            setRest(executor.submit(this));
             runner = null;
+            setRest(executor.submit(this));
         } catch (Throwable ex) {
+            // Exceptions.throwIfFatal(ex); nowhere to go
             runner = null;
             RxJavaPlugins.onError(ex);
+            throw ex;
         }
         return null;
     }

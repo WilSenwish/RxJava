@@ -13,11 +13,16 @@
 
 package io.reactivex.rxjava3.internal.operators.flowable;
 
+import static org.junit.Assert.*;
+
 import org.junit.Test;
 import org.reactivestreams.Publisher;
 
 import io.reactivex.rxjava3.core.*;
+import io.reactivex.rxjava3.exceptions.MissingBackpressureException;
 import io.reactivex.rxjava3.functions.Function;
+import io.reactivex.rxjava3.subjects.PublishSubject;
+import io.reactivex.rxjava3.subscribers.TestSubscriber;
 import io.reactivex.rxjava3.testsupport.TestHelper;
 
 public class FlowableOnBackpressureErrorTest extends RxJavaTest {
@@ -37,7 +42,7 @@ public class FlowableOnBackpressureErrorTest extends RxJavaTest {
         TestHelper.checkDoubleOnSubscribeFlowable(new Function<Flowable<Object>, Publisher<Object>>() {
             @Override
             public Publisher<Object> apply(Flowable<Object> f) throws Exception {
-                return new FlowableOnBackpressureError<Object>(f);
+                return new FlowableOnBackpressureError<>(f);
             }
         });
     }
@@ -47,8 +52,24 @@ public class FlowableOnBackpressureErrorTest extends RxJavaTest {
         TestHelper.<Integer>checkBadSourceFlowable(new Function<Flowable<Integer>, Object>() {
             @Override
             public Object apply(Flowable<Integer> f) throws Exception {
-                return new FlowableOnBackpressureError<Integer>(f);
+                return new FlowableOnBackpressureError<>(f);
             }
         }, false, 1, 1, 1);
+    }
+
+    @Test
+    public void overflowCancels() {
+        PublishSubject<Integer> ps = PublishSubject.create();
+
+        TestSubscriber<Integer> ts = ps.toFlowable(BackpressureStrategy.ERROR)
+        .test(0L);
+
+        assertTrue(ps.hasObservers());
+
+        ps.onNext(1);
+
+        assertFalse(ps.hasObservers());
+
+        ts.assertFailure(MissingBackpressureException.class);
     }
 }

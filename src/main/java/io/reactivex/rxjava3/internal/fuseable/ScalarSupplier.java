@@ -12,6 +12,7 @@
  */
 package io.reactivex.rxjava3.internal.fuseable;
 
+import io.reactivex.rxjava3.annotations.NonNull;
 import io.reactivex.rxjava3.functions.Supplier;
 
 /**
@@ -29,7 +30,8 @@ import io.reactivex.rxjava3.functions.Supplier;
  * <p>
  * @param <T> the scalar value type held by the implementing reactive type
  */
-public interface ScalarSupplier<T> extends Supplier<T> {
+@FunctionalInterface
+public interface ScalarSupplier<@NonNull T> extends Supplier<T> {
 
     // overridden to remove the throws Throwable
     @Override

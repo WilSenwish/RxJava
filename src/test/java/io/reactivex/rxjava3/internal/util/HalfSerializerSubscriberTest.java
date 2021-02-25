@@ -166,6 +166,7 @@ public class HalfSerializerSubscriberTest extends RxJavaTest {
     }
 
     @Test
+    @SuppressUndeliverable
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public void reentrantErrorOnError() {
         final AtomicInteger wip = new AtomicInteger();
@@ -214,7 +215,7 @@ public class HalfSerializerSubscriberTest extends RxJavaTest {
             final AtomicInteger wip = new AtomicInteger();
             final AtomicThrowable error = new AtomicThrowable();
 
-            final TestSubscriber<Integer> ts = new TestSubscriber<Integer>();
+            final TestSubscriber<Integer> ts = new TestSubscriber<>();
             ts.onSubscribe(new BooleanSubscription());
 
             Runnable r1 = new Runnable() {
@@ -240,13 +241,14 @@ public class HalfSerializerSubscriberTest extends RxJavaTest {
     }
 
     @Test
+    @SuppressUndeliverable
     public void onErrorOnCompleteRace() {
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
 
             final AtomicInteger wip = new AtomicInteger();
             final AtomicThrowable error = new AtomicThrowable();
 
-            final TestSubscriberEx<Integer> ts = new TestSubscriberEx<Integer>();
+            final TestSubscriberEx<Integer> ts = new TestSubscriberEx<>();
 
             ts.onSubscribe(new BooleanSubscription());
 

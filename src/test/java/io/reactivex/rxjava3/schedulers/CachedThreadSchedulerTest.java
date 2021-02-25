@@ -24,6 +24,7 @@ import io.reactivex.rxjava3.core.Scheduler.Worker;
 import io.reactivex.rxjava3.disposables.*;
 import io.reactivex.rxjava3.functions.*;
 import io.reactivex.rxjava3.internal.schedulers.IoScheduler;
+import io.reactivex.rxjava3.testsupport.SuppressUndeliverable;
 
 public class CachedThreadSchedulerTest extends AbstractSchedulerConcurrencyTests {
 
@@ -91,6 +92,7 @@ public class CachedThreadSchedulerTest extends AbstractSchedulerConcurrencyTests
     }
 
     @Test
+    @SuppressUndeliverable
     public void shutdownRejects() {
         final int[] calls = { 0 };
 
@@ -114,11 +116,11 @@ public class CachedThreadSchedulerTest extends AbstractSchedulerConcurrencyTests
         Worker w = s.createWorker();
         w.dispose();
 
-        assertEquals(Disposables.disposed(), w.schedule(r));
+        assertEquals(Disposable.disposed(), w.schedule(r));
 
-        assertEquals(Disposables.disposed(), w.schedule(r, 1, TimeUnit.SECONDS));
+        assertEquals(Disposable.disposed(), w.schedule(r, 1, TimeUnit.SECONDS));
 
-        assertEquals(Disposables.disposed(), w.schedulePeriodically(r, 1, 1, TimeUnit.SECONDS));
+        assertEquals(Disposable.disposed(), w.schedulePeriodically(r, 1, 1, TimeUnit.SECONDS));
 
         assertEquals(0, calls[0]);
     }

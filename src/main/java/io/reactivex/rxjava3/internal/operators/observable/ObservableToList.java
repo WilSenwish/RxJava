@@ -20,19 +20,12 @@ import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.exceptions.Exceptions;
 import io.reactivex.rxjava3.functions.Supplier;
 import io.reactivex.rxjava3.internal.disposables.*;
-import io.reactivex.rxjava3.internal.functions.Functions;
 import io.reactivex.rxjava3.internal.util.ExceptionHelper;
 
 public final class ObservableToList<T, U extends Collection<? super T>>
 extends AbstractObservableWithUpstream<T, U> {
 
     final Supplier<U> collectionSupplier;
-
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    public ObservableToList(ObservableSource<T> source, final int defaultCapacityHint) {
-        super(source);
-        this.collectionSupplier = (Supplier)Functions.createArrayList(defaultCapacityHint);
-    }
 
     public ObservableToList(ObservableSource<T> source, Supplier<U> collectionSupplier) {
         super(source);
@@ -49,7 +42,7 @@ extends AbstractObservableWithUpstream<T, U> {
             EmptyDisposable.error(e, t);
             return;
         }
-        source.subscribe(new ToListObserver<T, U>(t, coll));
+        source.subscribe(new ToListObserver<>(t, coll));
     }
 
     static final class ToListObserver<T, U extends Collection<? super T>> implements Observer<T>, Disposable {

@@ -37,6 +37,7 @@ import io.reactivex.rxjava3.subjects.PublishSubject;
 import io.reactivex.rxjava3.testsupport.*;
 
 public class ObservableRetryWithPredicateTest extends RxJavaTest {
+
     BiPredicate<Integer, Throwable> retryTwice = new BiPredicate<Integer, Throwable>() {
         @Override
         public boolean test(Integer t1, Throwable t2) {
@@ -77,7 +78,7 @@ public class ObservableRetryWithPredicateTest extends RxJavaTest {
             int count;
             @Override
             public void subscribe(Observer<? super Integer> t1) {
-                t1.onSubscribe(Disposables.empty());
+                t1.onSubscribe(Disposable.empty());
                 count++;
                 t1.onNext(0);
                 t1.onNext(1);
@@ -112,7 +113,7 @@ public class ObservableRetryWithPredicateTest extends RxJavaTest {
         Observable<Integer> source = Observable.unsafeCreate(new ObservableSource<Integer>() {
             @Override
             public void subscribe(Observer<? super Integer> t1) {
-                t1.onSubscribe(Disposables.empty());
+                t1.onSubscribe(Disposable.empty());
                 t1.onNext(0);
                 t1.onNext(1);
                 t1.onError(new TestException());
@@ -141,7 +142,7 @@ public class ObservableRetryWithPredicateTest extends RxJavaTest {
             int count;
             @Override
             public void subscribe(Observer<? super Integer> t1) {
-                t1.onSubscribe(Disposables.empty());
+                t1.onSubscribe(Disposable.empty());
                 count++;
                 t1.onNext(0);
                 t1.onNext(1);
@@ -178,7 +179,7 @@ public class ObservableRetryWithPredicateTest extends RxJavaTest {
             int count;
             @Override
             public void subscribe(Observer<? super Integer> t1) {
-                t1.onSubscribe(Disposables.empty());
+                t1.onSubscribe(Disposable.empty());
                 count++;
                 t1.onNext(0);
                 t1.onNext(1);
@@ -235,7 +236,7 @@ public class ObservableRetryWithPredicateTest extends RxJavaTest {
                 .unsafeCreate(so)
                 .retry(retry5);
 
-        ObservableRetryTest.AsyncObserver<Long> async = new ObservableRetryTest.AsyncObserver<Long>(observer);
+        ObservableRetryTest.AsyncObserver<Long> async = new ObservableRetryTest.AsyncObserver<>(observer);
 
         o.subscribe(async);
 
@@ -262,7 +263,7 @@ public class ObservableRetryWithPredicateTest extends RxJavaTest {
                 .timeout(80, TimeUnit.MILLISECONDS)
                 .retry(retry5);
 
-        ObservableRetryTest.AsyncObserver<Long> async = new ObservableRetryTest.AsyncObserver<Long>(observer);
+        ObservableRetryTest.AsyncObserver<Long> async = new ObservableRetryTest.AsyncObserver<>(observer);
 
         o.subscribe(async);
 
@@ -278,7 +279,7 @@ public class ObservableRetryWithPredicateTest extends RxJavaTest {
 
     @Test
     public void issue2826() {
-        TestObserverEx<Integer> to = new TestObserverEx<Integer>();
+        TestObserverEx<Integer> to = new TestObserverEx<>();
         final RuntimeException e = new RuntimeException("You shall not pass");
         final AtomicInteger c = new AtomicInteger();
         Observable.just(1).map(new Function<Integer, Integer>() {
@@ -312,7 +313,7 @@ public class ObservableRetryWithPredicateTest extends RxJavaTest {
 
     @Test
     public void issue3008RetryWithPredicate() {
-        final List<Long> list = new CopyOnWriteArrayList<Long>();
+        final List<Long> list = new CopyOnWriteArrayList<>();
         final AtomicBoolean isFirst = new AtomicBoolean(true);
         Observable.<Long> just(1L, 2L, 3L).map(new Function<Long, Long>() {
             @Override
@@ -340,7 +341,7 @@ public class ObservableRetryWithPredicateTest extends RxJavaTest {
 
     @Test
     public void issue3008RetryInfinite() {
-        final List<Long> list = new CopyOnWriteArrayList<Long>();
+        final List<Long> list = new CopyOnWriteArrayList<>();
         final AtomicBoolean isFirst = new AtomicBoolean(true);
         Observable.<Long> just(1L, 2L, 3L).map(new Function<Long, Long>() {
             @Override
@@ -390,6 +391,7 @@ public class ObservableRetryWithPredicateTest extends RxJavaTest {
     }
 
     @Test
+    @SuppressUndeliverable
     public void retryDisposeRace() {
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
             final PublishSubject<Integer> ps = PublishSubject.create();
@@ -438,6 +440,7 @@ public class ObservableRetryWithPredicateTest extends RxJavaTest {
     }
 
     @Test
+    @SuppressUndeliverable
     public void retryBiPredicateDisposeRace() {
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
             final PublishSubject<Integer> ps = PublishSubject.create();

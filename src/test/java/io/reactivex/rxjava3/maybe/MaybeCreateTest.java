@@ -27,16 +27,11 @@ import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 import io.reactivex.rxjava3.testsupport.TestHelper;
 
 public class MaybeCreateTest extends RxJavaTest {
-    @Test(expected = NullPointerException.class)
-    public void nullArgument() {
-        Maybe.create(null);
-    }
-
     @Test
     public void basic() {
         List<Throwable> errors = TestHelper.trackPluginErrors();
         try {
-            final Disposable d = Disposables.empty();
+            final Disposable d = Disposable.empty();
 
             Maybe.<Integer>create(new MaybeOnSubscribe<Integer>() {
                 @Override
@@ -61,8 +56,8 @@ public class MaybeCreateTest extends RxJavaTest {
     public void basicWithCancellable() {
         List<Throwable> errors = TestHelper.trackPluginErrors();
         try {
-            final Disposable d1 = Disposables.empty();
-            final Disposable d2 = Disposables.empty();
+            final Disposable d1 = Disposable.empty();
+            final Disposable d2 = Disposable.empty();
 
             Maybe.<Integer>create(new MaybeOnSubscribe<Integer>() {
                 @Override
@@ -95,7 +90,7 @@ public class MaybeCreateTest extends RxJavaTest {
     public void basicWithError() {
         List<Throwable> errors = TestHelper.trackPluginErrors();
         try {
-            final Disposable d = Disposables.empty();
+            final Disposable d = Disposable.empty();
 
             Maybe.<Integer>create(new MaybeOnSubscribe<Integer>() {
                 @Override
@@ -120,7 +115,7 @@ public class MaybeCreateTest extends RxJavaTest {
     public void basicWithCompletion() {
         List<Throwable> errors = TestHelper.trackPluginErrors();
         try {
-            final Disposable d = Disposables.empty();
+            final Disposable d = Disposable.empty();
 
             Maybe.<Integer>create(new MaybeOnSubscribe<Integer>() {
                 @Override

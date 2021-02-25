@@ -15,9 +15,10 @@ package io.reactivex.rxjava3.internal.operators.flowable;
 
 import static org.junit.Assert.*;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.*;
 
 import org.junit.*;
 import org.reactivestreams.*;
@@ -31,7 +32,7 @@ import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 import io.reactivex.rxjava3.processors.*;
 import io.reactivex.rxjava3.schedulers.TestScheduler;
 import io.reactivex.rxjava3.subscribers.*;
-import io.reactivex.rxjava3.testsupport.TestHelper;
+import io.reactivex.rxjava3.testsupport.*;
 
 public class FlowableWindowWithStartEndFlowableTest extends RxJavaTest {
 
@@ -46,8 +47,8 @@ public class FlowableWindowWithStartEndFlowableTest extends RxJavaTest {
 
     @Test
     public void flowableBasedOpenerAndCloser() {
-        final List<String> list = new ArrayList<String>();
-        final List<List<String>> lists = new ArrayList<List<String>>();
+        final List<String> list = new ArrayList<>();
+        final List<List<String>> lists = new ArrayList<>();
 
         Flowable<String> source = Flowable.unsafeCreate(new Publisher<String>() {
             @Override
@@ -96,7 +97,7 @@ public class FlowableWindowWithStartEndFlowableTest extends RxJavaTest {
     }
 
     private List<String> list(String... args) {
-        List<String> list = new ArrayList<String>();
+        List<String> list = new ArrayList<>();
         for (String arg : args) {
             list.add(arg);
         }
@@ -128,7 +129,7 @@ public class FlowableWindowWithStartEndFlowableTest extends RxJavaTest {
                 stringFlowable.subscribe(new DefaultSubscriber<String>() {
                     @Override
                     public void onComplete() {
-                        lists.add(new ArrayList<String>(list));
+                        lists.add(new ArrayList<>(list));
                         list.clear();
                     }
 
@@ -153,14 +154,21 @@ public class FlowableWindowWithStartEndFlowableTest extends RxJavaTest {
         PublishProcessor<Integer> open = PublishProcessor.create();
         final PublishProcessor<Integer> close = PublishProcessor.create();
 
-        TestSubscriber<Flowable<Integer>> ts = new TestSubscriber<Flowable<Integer>>();
+        TestSubscriber<Flowable<Integer>> ts = new TestSubscriber<>();
 
         source.window(open, new Function<Integer, Flowable<Integer>>() {
             @Override
             public Flowable<Integer> apply(Integer t) {
                 return close;
             }
-        }).subscribe(ts);
+        })
+        .doOnNext(new Consumer<Flowable<Integer>>() {
+            @Override
+            public void accept(Flowable<Integer> w) throws Throwable {
+                w.subscribe(Functions.emptyConsumer(), Functions.emptyConsumer()); // avoid abandonment
+            }
+        })
+        .subscribe(ts);
 
         open.onNext(1);
         source.onNext(1);
@@ -190,14 +198,21 @@ public class FlowableWindowWithStartEndFlowableTest extends RxJavaTest {
         PublishProcessor<Integer> open = PublishProcessor.create();
         final PublishProcessor<Integer> close = PublishProcessor.create();
 
-        TestSubscriber<Flowable<Integer>> ts = new TestSubscriber<Flowable<Integer>>();
+        TestSubscriber<Flowable<Integer>> ts = new TestSubscriber<>();
 
         source.window(open, new Function<Integer, Flowable<Integer>>() {
             @Override
             public Flowable<Integer> apply(Integer t) {
                 return close;
             }
-        }).subscribe(ts);
+        })
+        .doOnNext(new Consumer<Flowable<Integer>>() {
+            @Override
+            public void accept(Flowable<Integer> w) throws Throwable {
+                w.subscribe(Functions.emptyConsumer(), Functions.emptyConsumer()); // avoid abandonment
+            }
+        })
+        .subscribe(ts);
 
         open.onNext(1);
 
@@ -219,20 +234,20 @@ public class FlowableWindowWithStartEndFlowableTest extends RxJavaTest {
 
     @Test
     public void reentrant() {
-        final FlowableProcessor<Integer> ps = PublishProcessor.<Integer>create();
+        final FlowableProcessor<Integer> pp = PublishProcessor.<Integer>create();
 
         TestSubscriber<Integer> ts = new TestSubscriber<Integer>() {
             @Override
             public void onNext(Integer t) {
                 super.onNext(t);
                 if (t == 1) {
-                    ps.onNext(2);
-                    ps.onComplete();
+                    pp.onNext(2);
+                    pp.onComplete();
                 }
             }
         };
 
-        ps.window(BehaviorProcessor.createDefault(1), Functions.justFunction(Flowable.never()))
+        pp.window(BehaviorProcessor.createDefault(1), Functions.justFunction(Flowable.never()))
         .flatMap(new Function<Flowable<Integer>, Flowable<Integer>>() {
             @Override
             public Flowable<Integer> apply(Flowable<Integer> v) throws Exception {
@@ -241,21 +256,11 @@ public class FlowableWindowWithStartEndFlowableTest extends RxJavaTest {
         })
         .subscribe(ts);
 
-        ps.onNext(1);
+        pp.onNext(1);
 
         ts
         .awaitDone(1, TimeUnit.SECONDS)
         .assertResult(1, 2);
-    }
-
-    @Test
-    public void badSourceCallable() {
-        TestHelper.checkBadSourceFlowable(new Function<Flowable<Object>, Object>() {
-            @Override
-            public Object apply(Flowable<Object> f) throws Exception {
-                return f.window(Flowable.just(1), Functions.justFunction(Flowable.never()));
-            }
-        }, false, 1, 1, (Object[])null);
     }
 
     @Test
@@ -319,6 +324,7 @@ public class FlowableWindowWithStartEndFlowableTest extends RxJavaTest {
     }
 
     @Test
+    @SuppressUndeliverable
     public void endError() {
         PublishProcessor<Integer> source = PublishProcessor.create();
         PublishProcessor<Integer> start = PublishProcessor.create();
@@ -372,6 +378,12 @@ public class FlowableWindowWithStartEndFlowableTest extends RxJavaTest {
                     };
                 }
             })
+            .doOnNext(new Consumer<Flowable<Integer>>() {
+                @Override
+                public void accept(Flowable<Integer> w) throws Throwable {
+                    w.subscribe(Functions.emptyConsumer(), Functions.emptyConsumer()); // avoid abandonment
+                }
+            })
             .test()
             .assertValueCount(1)
             .assertNoErrors()
@@ -406,6 +418,12 @@ public class FlowableWindowWithStartEndFlowableTest extends RxJavaTest {
                 return flowableDisposed(closeDisposed);
             }
         })
+        .doOnNext(new Consumer<Flowable<Integer>>() {
+            @Override
+            public void accept(Flowable<Integer> w) throws Throwable {
+                w.subscribe(Functions.emptyConsumer(), Functions.emptyConsumer()); // avoid abandonment
+            }
+        })
         .to(TestHelper.<Flowable<Integer>>testConsumer())
         .assertSubscribed()
         .assertNoErrors()
@@ -418,7 +436,6 @@ public class FlowableWindowWithStartEndFlowableTest extends RxJavaTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     public void mainWindowMissingBackpressure() {
         PublishProcessor<Integer> source = PublishProcessor.create();
         PublishProcessor<Integer> boundary = PublishProcessor.create();
@@ -435,5 +452,268 @@ public class FlowableWindowWithStartEndFlowableTest extends RxJavaTest {
 
         assertFalse(source.hasSubscribers());
         assertFalse(boundary.hasSubscribers());
+    }
+
+    @Test
+    public void cancellingWindowCancelsUpstream() {
+        PublishProcessor<Integer> pp = PublishProcessor.create();
+
+        TestSubscriber<Integer> ts = pp.window(Flowable.just(1).concatWith(Flowable.<Integer>never()), Functions.justFunction(Flowable.never()))
+        .take(1)
+        .flatMap(new Function<Flowable<Integer>, Publisher<Integer>>() {
+            @Override
+            public Publisher<Integer> apply(Flowable<Integer> w) throws Throwable {
+                return w.take(1);
+            }
+        })
+        .test();
+
+        assertTrue(pp.hasSubscribers());
+
+        pp.onNext(1);
+
+        ts
+        .assertResult(1);
+
+        assertFalse("Processor still has subscribers!", pp.hasSubscribers());
+    }
+
+    @Test
+    public void windowAbandonmentCancelsUpstream() {
+        PublishProcessor<Integer> pp = PublishProcessor.create();
+
+        final AtomicReference<Flowable<Integer>> inner = new AtomicReference<>();
+
+        TestSubscriber<Flowable<Integer>> ts = pp.window(Flowable.<Integer>just(1).concatWith(Flowable.<Integer>never()),
+                Functions.justFunction(Flowable.never()))
+        .doOnNext(new Consumer<Flowable<Integer>>() {
+            @Override
+            public void accept(Flowable<Integer> v) throws Throwable {
+                inner.set(v);
+            }
+        })
+        .test();
+
+        assertTrue(pp.hasSubscribers());
+
+        ts
+        .assertValueCount(1)
+        ;
+
+        pp.onNext(1);
+
+        assertTrue(pp.hasSubscribers());
+
+        ts.cancel();
+
+        ts
+        .assertValueCount(1)
+        .assertNoErrors()
+        .assertNotComplete();
+
+        assertFalse("Processor still has subscribers!", pp.hasSubscribers());
+
+        inner.get().test().assertResult();
+    }
+
+    @Test
+    public void closingIndicatorFunctionCrash() {
+
+        PublishProcessor<Integer> source = PublishProcessor.create();
+        PublishProcessor<Integer> boundary = PublishProcessor.create();
+
+        TestSubscriber<Flowable<Integer>> ts = source.window(boundary, new Function<Integer, Publisher<Object>>() {
+            @Override
+            public Publisher<Object> apply(Integer end) throws Throwable {
+                throw new TestException();
+            }
+        })
+        .test()
+        ;
+
+        ts.assertEmpty();
+
+        boundary.onNext(1);
+
+        ts.assertFailure(TestException.class);
+
+        assertFalse(source.hasSubscribers());
+        assertFalse(boundary.hasSubscribers());
+
+    }
+
+    @Test
+    public void doubleOnSubscribe() {
+        TestHelper.checkDoubleOnSubscribeFlowable(o -> o.window(Flowable.never(), v -> Flowable.never()));
+    }
+
+    @Test
+    public void openError() throws Throwable {
+        TestHelper.withErrorTracking(errors -> {
+            TestException ex1 = new TestException();
+            TestException ex2 = new TestException();
+            for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
+                AtomicReference<Subscriber<? super Integer>> ref1 = new AtomicReference<>();
+                AtomicReference<Subscriber<? super Integer>> ref2 = new AtomicReference<>();
+
+                Flowable<Integer> f1 = Flowable.<Integer>fromPublisher(ref1::set);
+                Flowable<Integer> f2 = Flowable.<Integer>fromPublisher(ref2::set);
+
+                TestSubscriber<Flowable<Integer>> ts = BehaviorProcessor.createDefault(1)
+                .window(f1, v -> f2)
+                .doOnNext(w -> w.test())
+                .test();
+
+                ref1.get().onSubscribe(new BooleanSubscription());
+                ref1.get().onNext(1);
+                ref2.get().onSubscribe(new BooleanSubscription());
+
+                TestHelper.race(
+                        () -> ref1.get().onError(ex1),
+                        () -> ref2.get().onError(ex2)
+                );
+
+                ts.assertError(RuntimeException.class);
+
+                if (!errors.isEmpty()) {
+                    TestHelper.assertUndeliverable(errors, 0, TestException.class);
+                }
+
+                errors.clear();
+            }
+        });
+    }
+
+    @Test
+    public void closeError() throws Throwable {
+        TestHelper.withErrorTracking(errors -> {
+            AtomicReference<Subscriber<? super Integer>> ref1 = new AtomicReference<>();
+            AtomicReference<Subscriber<? super Integer>> ref2 = new AtomicReference<>();
+
+            Flowable<Integer> f1 = Flowable.<Integer>unsafeCreate(ref1::set);
+            Flowable<Integer> f2 = Flowable.<Integer>unsafeCreate(ref2::set);
+
+            TestSubscriber<Integer> ts = BehaviorProcessor.createDefault(1)
+            .window(f1, v -> f2)
+            .flatMap(v -> v)
+            .test();
+
+            ref1.get().onSubscribe(new BooleanSubscription());
+            ref1.get().onNext(1);
+            ref2.get().onSubscribe(new BooleanSubscription());
+
+            ref2.get().onError(new TestException());
+            ref2.get().onError(new TestException());
+
+            ts.assertFailure(TestException.class);
+
+            TestHelper.assertUndeliverable(errors, 0, TestException.class);
+        });
+    }
+
+    @Test
+    public void upstreamFailsBeforeFirstWindow() {
+        Flowable.error(new TestException())
+        .window(Flowable.never(), v -> Flowable.never())
+        .test()
+        .assertFailure(TestException.class);
+    }
+
+    @Test
+    public void windowOpenMainCompletes() {
+        AtomicReference<Subscriber<? super Integer>> ref1 = new AtomicReference<>();
+
+        PublishProcessor<Object> pp = PublishProcessor.create();
+        Flowable<Integer> f1 = Flowable.<Integer>unsafeCreate(ref1::set);
+
+        AtomicInteger counter = new AtomicInteger();
+
+        TestSubscriber<Flowable<Object>> ts = pp
+        .window(f1, v -> Flowable.never())
+        .doOnNext(w -> {
+            if (counter.getAndIncrement() == 0) {
+                ref1.get().onNext(2);
+                pp.onNext(1);
+                pp.onComplete();
+            }
+            w.test();
+        })
+        .test();
+
+        ref1.get().onSubscribe(new BooleanSubscription());
+        ref1.get().onNext(1);
+
+        ts.assertComplete();
+    }
+
+    @Test
+    public void windowOpenMainError() {
+        AtomicReference<Subscriber<? super Integer>> ref1 = new AtomicReference<>();
+
+        PublishProcessor<Object> pp = PublishProcessor.create();
+        Flowable<Integer> f1 = Flowable.<Integer>unsafeCreate(ref1::set);
+
+        AtomicInteger counter = new AtomicInteger();
+
+        TestSubscriber<Flowable<Object>> ts = pp
+        .window(f1, v -> Flowable.never())
+        .doOnNext(w -> {
+            if (counter.getAndIncrement() == 0) {
+                ref1.get().onNext(2);
+                pp.onNext(1);
+                pp.onError(new TestException());
+            }
+            w.test();
+        })
+        .test();
+
+        ref1.get().onSubscribe(new BooleanSubscription());
+        ref1.get().onNext(1);
+
+        ts.assertError(TestException.class);
+    }
+
+    @Test
+    public void windowOpenIgnoresDispose() {
+        AtomicReference<Subscriber<? super Integer>> ref1 = new AtomicReference<>();
+
+        PublishProcessor<Object> pp = PublishProcessor.create();
+        Flowable<Integer> f1 = Flowable.<Integer>unsafeCreate(ref1::set);
+
+        TestSubscriber<Flowable<Object>> ts = pp
+        .window(f1, v -> Flowable.never())
+        .take(1)
+        .doOnNext(w -> {
+            w.test();
+        })
+        .test();
+
+        ref1.get().onSubscribe(new BooleanSubscription());
+        ref1.get().onNext(1);
+        ref1.get().onNext(2);
+
+        ts.assertValueCount(1);
+    }
+
+    @Test
+    public void badRequest() {
+        TestHelper.assertBadRequestReported(Flowable.never().window(Flowable.never(), v -> Flowable.never()));
+    }
+
+    @Test
+    public void mainIgnoresCancelBeforeOnError() throws Throwable {
+        TestHelper.withErrorTracking(errors -> {
+            Flowable.fromPublisher(s -> {
+                s.onSubscribe(new BooleanSubscription());
+                s.onNext(1);
+                s.onError(new IOException());
+            })
+            .window(BehaviorProcessor.createDefault(1), v -> Flowable.error(new TestException()))
+            .doOnNext(w -> w.test())
+            .test()
+            .assertError(TestException.class);
+
+            TestHelper.assertUndeliverable(errors, 0, IOException.class);
+        });
     }
 }

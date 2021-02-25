@@ -16,16 +16,14 @@ package io.reactivex.rxjava3.internal.operators.observable;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.*;
 import org.mockito.InOrder;
 
 import io.reactivex.rxjava3.core.*;
-import io.reactivex.rxjava3.disposables.Disposables;
+import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.exceptions.TestException;
-import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 import io.reactivex.rxjava3.schedulers.TestScheduler;
 import io.reactivex.rxjava3.subjects.PublishSubject;
 import io.reactivex.rxjava3.testsupport.TestHelper;
@@ -48,7 +46,7 @@ public class ObservableThrottleFirstTest extends RxJavaTest {
         Observable<String> source = Observable.unsafeCreate(new ObservableSource<String>() {
             @Override
             public void subscribe(Observer<? super String> innerObserver) {
-                innerObserver.onSubscribe(Disposables.empty());
+                innerObserver.onSubscribe(Disposable.empty());
                 publishNext(innerObserver, 100, "one");    // publish as it's first
                 publishNext(innerObserver, 300, "two");    // skip as it's last within the first 400
                 publishNext(innerObserver, 900, "three");   // publish
@@ -76,7 +74,7 @@ public class ObservableThrottleFirstTest extends RxJavaTest {
         Observable<String> source = Observable.unsafeCreate(new ObservableSource<String>() {
             @Override
             public void subscribe(Observer<? super String> innerObserver) {
-                innerObserver.onSubscribe(Disposables.empty());
+                innerObserver.onSubscribe(Disposable.empty());
                 Exception error = new TestException();
                 publishNext(innerObserver, 100, "one");    // Should be published since it is first
                 publishNext(innerObserver, 200, "two");    // Should be skipped since onError will arrive before the timeout expires
@@ -167,28 +165,7 @@ public class ObservableThrottleFirstTest extends RxJavaTest {
     }
 
     @Test
-    public void badSource() {
-        List<Throwable> errors = TestHelper.trackPluginErrors();
-        try {
-            new Observable<Integer>() {
-                @Override
-                protected void subscribeActual(Observer<? super Integer> observer) {
-                    observer.onSubscribe(Disposables.empty());
-                    observer.onNext(1);
-                    observer.onNext(2);
-                    observer.onComplete();
-                    observer.onNext(3);
-                    observer.onError(new TestException());
-                    observer.onComplete();
-                }
-            }
-            .throttleFirst(1, TimeUnit.DAYS)
-            .test()
-            .assertResult(1);
-
-            TestHelper.assertUndeliverable(errors, 0, TestException.class);
-        } finally {
-            RxJavaPlugins.reset();
-        }
+    public void doubleOnSubscribe() {
+        TestHelper.checkDoubleOnSubscribeObservable(o -> o.throttleFirst(1, TimeUnit.SECONDS));
     }
 }

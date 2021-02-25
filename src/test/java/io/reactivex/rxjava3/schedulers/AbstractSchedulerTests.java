@@ -27,6 +27,7 @@ import org.mockito.stubbing.Answer;
 import org.reactivestreams.*;
 
 import io.reactivex.rxjava3.core.*;
+import io.reactivex.rxjava3.core.Scheduler.Worker;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.functions.*;
 import io.reactivex.rxjava3.internal.disposables.SequentialDisposable;
@@ -395,7 +396,7 @@ public abstract class AbstractSchedulerTests extends RxJavaTest {
             }
         });
 
-        ConcurrentObserverValidator<String> observer = new ConcurrentObserverValidator<String>();
+        ConcurrentObserverValidator<String> observer = new ConcurrentObserverValidator<>();
         // this should call onNext concurrently
         f.subscribe(observer);
 
@@ -414,7 +415,7 @@ public abstract class AbstractSchedulerTests extends RxJavaTest {
 
         Flowable<String> f = Flowable.fromArray("one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten");
 
-        ConcurrentObserverValidator<String> observer = new ConcurrentObserverValidator<String>();
+        ConcurrentObserverValidator<String> observer = new ConcurrentObserverValidator<>();
 
         f.observeOn(scheduler).subscribe(observer);
 
@@ -449,7 +450,7 @@ public abstract class AbstractSchedulerTests extends RxJavaTest {
                     }
                 });
 
-        ConcurrentObserverValidator<String> observer = new ConcurrentObserverValidator<String>();
+        ConcurrentObserverValidator<String> observer = new ConcurrentObserverValidator<>();
 
         f.subscribe(observer);
 
@@ -466,12 +467,12 @@ public abstract class AbstractSchedulerTests extends RxJavaTest {
     /**
      * Used to determine if onNext is being invoked concurrently.
      *
-     * @param <T>
+     * @param <T> the element type
      */
     private static class ConcurrentObserverValidator<T> extends DefaultSubscriber<T> {
 
         final AtomicInteger concurrentCounter = new AtomicInteger();
-        final AtomicReference<Throwable> error = new AtomicReference<Throwable>();
+        final AtomicReference<Throwable> error = new AtomicReference<>();
         final CountDownLatch completed = new CountDownLatch(1);
 
         @Override
@@ -685,7 +686,7 @@ public abstract class AbstractSchedulerTests extends RxJavaTest {
             return;
         }
 
-        final AtomicReference<Disposable> disposable = new AtomicReference<Disposable>();
+        final AtomicReference<Disposable> disposable = new AtomicReference<>();
 
         try {
             assertRunnableDecorated(new Runnable() {
@@ -769,6 +770,53 @@ public abstract class AbstractSchedulerTests extends RxJavaTest {
             fail();
         } catch (NullPointerException npe) {
             assertEquals("run is null", npe.getMessage());
+        }
+    }
+
+    void schedulePrint(Function<Runnable, Disposable> onSchedule) {
+        CountDownLatch waitForBody = new CountDownLatch(1);
+        CountDownLatch waitForPrint = new CountDownLatch(1);
+
+        try {
+            Disposable d = onSchedule.apply(() -> {
+                waitForBody.countDown();
+                try {
+                    waitForPrint.await();
+                } catch (InterruptedException ex) {
+                    ex.printStackTrace();
+                }
+            });
+
+            waitForBody.await();
+
+            assertNotEquals("", d.toString());
+        } catch (Throwable ex) {
+            throw new AssertionError(ex);
+        } finally {
+            waitForPrint.countDown();
+        }
+    }
+
+    @Test
+    public void scheduleDirectPrint() {
+        if (getScheduler() instanceof TrampolineScheduler) {
+            // no concurrency with Trampoline
+            return;
+        }
+        schedulePrint(r -> getScheduler().scheduleDirect(r));
+    }
+
+    @Test
+    public void schedulePrint() {
+        if (getScheduler() instanceof TrampolineScheduler) {
+            // no concurrency with Trampoline
+            return;
+        }
+        Worker worker = getScheduler().createWorker();
+        try {
+            schedulePrint(worker::schedule);
+        } finally {
+            worker.dispose();
         }
     }
 }

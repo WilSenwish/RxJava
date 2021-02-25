@@ -30,7 +30,7 @@ import io.reactivex.rxjava3.testsupport.TestHelper;
 
 public class SingleDoAfterSuccessTest extends RxJavaTest {
 
-    final List<Integer> values = new ArrayList<Integer>();
+    final List<Integer> values = new ArrayList<>();
 
     final Consumer<Integer> afterSuccess = new Consumer<Integer>() {
         @Override
@@ -65,11 +65,6 @@ public class SingleDoAfterSuccessTest extends RxJavaTest {
         .assertFailure(TestException.class);
 
         assertTrue(values.isEmpty());
-    }
-
-    @Test(expected = NullPointerException.class)
-    public void consumerNull() {
-        Single.just(1).doAfterSuccess(null);
     }
 
     @Test

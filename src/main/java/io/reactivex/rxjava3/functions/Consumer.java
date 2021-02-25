@@ -13,11 +13,14 @@
 
 package io.reactivex.rxjava3.functions;
 
+import io.reactivex.rxjava3.annotations.NonNull;
+
 /**
  * A functional interface (callback) that accepts a single value.
  * @param <T> the value type
  */
-public interface Consumer<T> {
+@FunctionalInterface
+public interface Consumer<@NonNull T> {
     /**
      * Consume the given value.
      * @param t the value

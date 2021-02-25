@@ -16,20 +16,20 @@ package io.reactivex.rxjava3.core;
 import io.reactivex.rxjava3.annotations.NonNull;
 
 /**
- * Convenience interface and callback used by the {@link Observable#to} operator to turn an Observable into another
+ * Convenience interface and callback used by the {@link Observable#to} operator to turn an {@link Observable} into another
  * value fluently.
  * <p>History: 2.1.7 - experimental
  * @param <T> the upstream type
  * @param <R> the output type
  * @since 2.2
  */
-public interface ObservableConverter<T, R> {
+@FunctionalInterface
+public interface ObservableConverter<@NonNull T, @NonNull R> {
     /**
-     * Applies a function to the upstream Observable and returns a converted value of type {@code R}.
+     * Applies a function to the upstream {@link Observable} and returns a converted value of type {@code R}.
      *
-     * @param upstream the upstream Observable instance
+     * @param upstream the upstream {@code Observable} instance
      * @return the converted value
      */
-    @NonNull
     R apply(@NonNull Observable<T> upstream);
 }

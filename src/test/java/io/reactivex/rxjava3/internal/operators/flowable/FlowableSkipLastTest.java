@@ -89,7 +89,7 @@ public class FlowableSkipLastTest extends RxJavaTest {
     @Test
     public void skipLastWithBackpressure() {
         Flowable<Integer> f = Flowable.range(0, Flowable.bufferSize() * 2).skipLast(Flowable.bufferSize() + 10);
-        TestSubscriber<Integer> ts = new TestSubscriber<Integer>();
+        TestSubscriber<Integer> ts = new TestSubscriber<>();
         f.observeOn(Schedulers.computation()).subscribe(ts);
         ts.awaitDone(5, TimeUnit.SECONDS);
         ts.assertNoErrors();
@@ -97,7 +97,7 @@ public class FlowableSkipLastTest extends RxJavaTest {
 
     }
 
-    @Test(expected = IndexOutOfBoundsException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void skipLastWithNegativeCount() {
         Flowable.just("one").skipLast(-1);
     }

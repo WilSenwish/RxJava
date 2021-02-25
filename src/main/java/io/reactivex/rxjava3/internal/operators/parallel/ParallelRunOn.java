@@ -49,7 +49,9 @@ public final class ParallelRunOn<T> extends ParallelFlowable<T> {
     }
 
     @Override
-    public void subscribe(final Subscriber<? super T>[] subscribers) {
+    public void subscribe(Subscriber<? super T>[] subscribers) {
+        subscribers = RxJavaPlugins.onSubscribe(this, subscribers);
+
         if (!validate(subscribers)) {
             return;
         }
@@ -75,12 +77,12 @@ public final class ParallelRunOn<T> extends ParallelFlowable<T> {
 
         Subscriber<? super T> a = subscribers[i];
 
-        SpscArrayQueue<T> q = new SpscArrayQueue<T>(prefetch);
+        SpscArrayQueue<T> q = new SpscArrayQueue<>(prefetch);
 
         if (a instanceof ConditionalSubscriber) {
-            parents[i] = new RunOnConditionalSubscriber<T>((ConditionalSubscriber<? super T>)a, prefetch, q, worker);
+            parents[i] = new RunOnConditionalSubscriber<>((ConditionalSubscriber<? super T>)a, prefetch, q, worker);
         } else {
-            parents[i] = new RunOnSubscriber<T>(a, prefetch, q, worker);
+            parents[i] = new RunOnSubscriber<>(a, prefetch, q, worker);
         }
     }
 
@@ -430,19 +432,14 @@ public final class ParallelRunOn<T> extends ParallelFlowable<T> {
                     }
                 }
 
-                if (e != 0L && r != Long.MAX_VALUE) {
-                    requested.addAndGet(-e);
+                if (e != 0L) {
+                    BackpressureHelper.produced(requested, e);
                 }
 
-                int w = get();
-                if (w == missed) {
-                    consumed = c;
-                    missed = addAndGet(-missed);
-                    if (missed == 0) {
-                        break;
-                    }
-                } else {
-                    missed = w;
+                consumed = c;
+                missed = addAndGet(-missed);
+                if (missed == 0) {
+                    break;
                 }
             }
         }

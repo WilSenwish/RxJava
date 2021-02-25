@@ -26,6 +26,7 @@ import io.reactivex.rxjava3.annotations.NonNull;
 import io.reactivex.rxjava3.core.*;
 import io.reactivex.rxjava3.exceptions.TestException;
 import io.reactivex.rxjava3.functions.Action;
+import io.reactivex.rxjava3.internal.schedulers.ImmediateThinScheduler;
 import io.reactivex.rxjava3.internal.subscriptions.BooleanSubscription;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 import io.reactivex.rxjava3.schedulers.Schedulers;
@@ -38,7 +39,7 @@ public class FlowableUnsubscribeOnTest extends RxJavaTest {
         UIEventLoopScheduler uiEventLoop = new UIEventLoopScheduler();
         try {
             final ThreadSubscription subscription = new ThreadSubscription();
-            final AtomicReference<Thread> subscribeThread = new AtomicReference<Thread>();
+            final AtomicReference<Thread> subscribeThread = new AtomicReference<>();
             Flowable<Integer> w = Flowable.unsafeCreate(new Publisher<Integer>() {
 
                 @Override
@@ -54,7 +55,7 @@ public class FlowableUnsubscribeOnTest extends RxJavaTest {
                 }
             });
 
-            TestSubscriberEx<Integer> ts = new TestSubscriberEx<Integer>();
+            TestSubscriberEx<Integer> ts = new TestSubscriberEx<>();
             w.subscribeOn(uiEventLoop).observeOn(Schedulers.computation())
             .unsubscribeOn(uiEventLoop)
             .take(2)
@@ -87,7 +88,7 @@ public class FlowableUnsubscribeOnTest extends RxJavaTest {
         UIEventLoopScheduler uiEventLoop = new UIEventLoopScheduler();
         try {
             final ThreadSubscription subscription = new ThreadSubscription();
-            final AtomicReference<Thread> subscribeThread = new AtomicReference<Thread>();
+            final AtomicReference<Thread> subscribeThread = new AtomicReference<>();
             Flowable<Integer> w = Flowable.unsafeCreate(new Publisher<Integer>() {
 
                 @Override
@@ -103,7 +104,7 @@ public class FlowableUnsubscribeOnTest extends RxJavaTest {
                 }
             });
 
-            TestSubscriberEx<Integer> ts = new TestSubscriberEx<Integer>();
+            TestSubscriberEx<Integer> ts = new TestSubscriberEx<>();
             w.subscribeOn(Schedulers.newThread()).observeOn(Schedulers.computation())
             .unsubscribeOn(uiEventLoop)
             .take(2)
@@ -273,5 +274,10 @@ public class FlowableUnsubscribeOnTest extends RxJavaTest {
         } finally {
             RxJavaPlugins.reset();
         }
+    }
+
+    @Test
+    public void doubleOnSubscribe() {
+        TestHelper.checkDoubleOnSubscribeFlowable(f -> f.unsubscribeOn(ImmediateThinScheduler.INSTANCE));
     }
 }

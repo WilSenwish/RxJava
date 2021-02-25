@@ -30,7 +30,8 @@ public class ObservableFromTest extends RxJavaTest {
     @Test
     public void fromFutureTimeout() throws Exception {
         Observable.fromFuture(Observable.never()
-        .toFuture(), 100, TimeUnit.MILLISECONDS, Schedulers.io())
+        .toFuture(), 100, TimeUnit.MILLISECONDS)
+        .subscribeOn(Schedulers.io())
         .test()
         .awaitDone(5, TimeUnit.SECONDS)
         .assertFailure(TimeoutException.class);
@@ -77,7 +78,7 @@ public class ObservableFromTest extends RxJavaTest {
 
     @Test
     public void fusionRejected() {
-        TestObserverEx<Integer> to = new TestObserverEx<Integer>(QueueFuseable.ASYNC);
+        TestObserverEx<Integer> to = new TestObserverEx<>(QueueFuseable.ASYNC);
 
         Observable.fromArray(1, 2, 3)
         .subscribe(to);

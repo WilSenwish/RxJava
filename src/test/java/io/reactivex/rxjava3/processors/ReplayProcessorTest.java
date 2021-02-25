@@ -26,6 +26,7 @@ import org.junit.*;
 import org.mockito.*;
 import org.reactivestreams.*;
 
+import io.reactivex.rxjava3.annotations.NonNull;
 import io.reactivex.rxjava3.core.Flowable;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.exceptions.TestException;
@@ -46,6 +47,7 @@ public class ReplayProcessorTest extends FlowableProcessorTest<Object> {
     }
 
     @Test
+    @SuppressUndeliverable
     public void completed() {
         ReplayProcessor<String> processor = ReplayProcessor.create();
 
@@ -70,13 +72,14 @@ public class ReplayProcessorTest extends FlowableProcessorTest<Object> {
     }
 
     @Test
+    @SuppressUndeliverable
     public void completedStopsEmittingData() {
         ReplayProcessor<Integer> channel = ReplayProcessor.create();
         Subscriber<Object> observerA = TestHelper.mockSubscriber();
         Subscriber<Object> observerB = TestHelper.mockSubscriber();
         Subscriber<Object> observerC = TestHelper.mockSubscriber();
         Subscriber<Object> observerD = TestHelper.mockSubscriber();
-        TestSubscriber<Object> ts = new TestSubscriber<Object>(observerA);
+        TestSubscriber<Object> ts = new TestSubscriber<>(observerA);
 
         channel.subscribe(ts);
         channel.subscribe(observerB);
@@ -139,6 +142,7 @@ public class ReplayProcessorTest extends FlowableProcessorTest<Object> {
     }
 
     @Test
+    @SuppressUndeliverable
     public void completedAfterError() {
         ReplayProcessor<String> processor = ReplayProcessor.create();
 
@@ -169,6 +173,7 @@ public class ReplayProcessorTest extends FlowableProcessorTest<Object> {
     }
 
     @Test
+    @SuppressUndeliverable
     public void error() {
         ReplayProcessor<String> processor = ReplayProcessor.create();
 
@@ -227,7 +232,7 @@ public class ReplayProcessorTest extends FlowableProcessorTest<Object> {
         ReplayProcessor<String> processor = ReplayProcessor.create();
 
         Subscriber<String> subscriber = TestHelper.mockSubscriber();
-        TestSubscriber<String> ts = new TestSubscriber<String>(subscriber);
+        TestSubscriber<String> ts = new TestSubscriber<>(subscriber);
         processor.subscribe(ts);
 
         processor.onNext("one");
@@ -258,7 +263,7 @@ public class ReplayProcessorTest extends FlowableProcessorTest<Object> {
     @Test
     public void newSubscriberDoesntBlockExisting() throws InterruptedException {
 
-        final AtomicReference<String> lastValueForSubscriber1 = new AtomicReference<String>();
+        final AtomicReference<String> lastValueForSubscriber1 = new AtomicReference<>();
         Subscriber<String> subscriber1 = new DefaultSubscriber<String>() {
 
             @Override
@@ -279,7 +284,7 @@ public class ReplayProcessorTest extends FlowableProcessorTest<Object> {
 
         };
 
-        final AtomicReference<String> lastValueForSubscriber2 = new AtomicReference<String>();
+        final AtomicReference<String> lastValueForSubscriber2 = new AtomicReference<>();
         final CountDownLatch oneReceived = new CountDownLatch(1);
         final CountDownLatch makeSlow = new CountDownLatch(1);
         final CountDownLatch completed = new CountDownLatch(1);
@@ -806,7 +811,7 @@ public class ReplayProcessorTest extends FlowableProcessorTest<Object> {
         rs.onNext(3);
         rs.onComplete();
 
-        TestSubscriber<Integer> ts = new TestSubscriber<Integer>(0L);
+        TestSubscriber<Integer> ts = new TestSubscriber<>(0L);
 
         rs.subscribe(ts);
 
@@ -834,7 +839,7 @@ public class ReplayProcessorTest extends FlowableProcessorTest<Object> {
         rs.onNext(3);
         rs.onComplete();
 
-        TestSubscriber<Integer> ts = new TestSubscriber<Integer>(0L);
+        TestSubscriber<Integer> ts = new TestSubscriber<>(0L);
 
         rs.subscribe(ts);
 
@@ -862,7 +867,7 @@ public class ReplayProcessorTest extends FlowableProcessorTest<Object> {
         rs.onNext(3);
         rs.onComplete();
 
-        TestSubscriber<Integer> ts = new TestSubscriber<Integer>(0L);
+        TestSubscriber<Integer> ts = new TestSubscriber<>(0L);
 
         rs.subscribe(ts);
 
@@ -1026,7 +1031,7 @@ public class ReplayProcessorTest extends FlowableProcessorTest<Object> {
     @Test
     public void subscribeCancelRace() {
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
-            final TestSubscriber<Integer> ts = new TestSubscriber<Integer>();
+            final TestSubscriber<Integer> ts = new TestSubscriber<>();
 
             final ReplayProcessor<Integer> rp = ReplayProcessor.create();
 
@@ -1200,6 +1205,30 @@ public class ReplayProcessorTest extends FlowableProcessorTest<Object> {
     }
 
     @Test
+    public void takeSizeAndTime2() {
+        TestScheduler scheduler = new TestScheduler();
+
+        ReplayProcessor<Integer> rp = ReplayProcessor.createWithTimeAndSize(1, TimeUnit.SECONDS, scheduler, 2);
+
+        rp.onNext(1);
+        rp.onNext(2);
+        rp.onNext(3);
+
+        TestSubscriber<Integer> ts = new TestSubscriber<Integer>() {
+            @Override
+            public void onNext(@NonNull Integer t) {
+                super.onNext(t);
+                cancel();
+                onComplete();
+            }
+        };
+
+        rp
+        .subscribeWith(ts)
+        .assertResult(2);
+    }
+
+    @Test
     public void takeSize() {
         ReplayProcessor<Integer> rp = ReplayProcessor.createWithSize(2);
 
@@ -1210,6 +1239,28 @@ public class ReplayProcessorTest extends FlowableProcessorTest<Object> {
         rp
         .take(1)
         .test()
+        .assertResult(2);
+    }
+
+    @Test
+    public void takeSize2() {
+        ReplayProcessor<Integer> rp = ReplayProcessor.createWithSize(2);
+
+        rp.onNext(1);
+        rp.onNext(2);
+        rp.onNext(3);
+
+        TestSubscriber<Integer> ts = new TestSubscriber<Integer>() {
+            @Override
+            public void onNext(@NonNull Integer t) {
+                super.onNext(t);
+                cancel();
+                onComplete();
+            }
+        };
+
+        rp
+        .subscribeWith(ts)
         .assertResult(2);
     }
 

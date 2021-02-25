@@ -27,6 +27,7 @@ import io.reactivex.rxjava3.core.Scheduler.Worker;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.internal.functions.Functions;
 import io.reactivex.rxjava3.internal.operators.flowable.FlowableSubscribeOn.SubscribeOnSubscriber;
+import io.reactivex.rxjava3.internal.schedulers.ImmediateThinScheduler;
 import io.reactivex.rxjava3.internal.subscriptions.BooleanSubscription;
 import io.reactivex.rxjava3.schedulers.*;
 import io.reactivex.rxjava3.subscribers.*;
@@ -41,7 +42,7 @@ public class FlowableSubscribeOnTest extends RxJavaTest {
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch doneLatch = new CountDownLatch(1);
 
-        TestSubscriber<Integer> ts = new TestSubscriber<Integer>();
+        TestSubscriber<Integer> ts = new TestSubscriber<>();
 
         Flowable
         .unsafeCreate(new Publisher<Integer>() {
@@ -79,7 +80,7 @@ public class FlowableSubscribeOnTest extends RxJavaTest {
 
     @Test
     public void onError() {
-        TestSubscriberEx<String> ts = new TestSubscriberEx<String>();
+        TestSubscriberEx<String> ts = new TestSubscriberEx<>();
         Flowable.unsafeCreate(new Publisher<String>() {
 
             @Override
@@ -152,7 +153,7 @@ public class FlowableSubscribeOnTest extends RxJavaTest {
 
     @Test
     public void unsubscribeInfiniteStream() throws InterruptedException {
-        TestSubscriber<Integer> ts = new TestSubscriber<Integer>();
+        TestSubscriber<Integer> ts = new TestSubscriber<>();
         final AtomicInteger count = new AtomicInteger();
         Flowable.unsafeCreate(new Publisher<Integer>() {
 
@@ -178,7 +179,7 @@ public class FlowableSubscribeOnTest extends RxJavaTest {
     @Test
     public void backpressureReschedulesCorrectly() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(10);
-        TestSubscriberEx<Integer> ts = new TestSubscriberEx<Integer>(new DefaultSubscriber<Integer>() {
+        TestSubscriberEx<Integer> ts = new TestSubscriberEx<>(new DefaultSubscriber<Integer>() {
 
             @Override
             public void onComplete() {
@@ -208,7 +209,7 @@ public class FlowableSubscribeOnTest extends RxJavaTest {
 
     @Test
     public void setProducerSynchronousRequest() {
-        TestSubscriber<Integer> ts = new TestSubscriber<Integer>();
+        TestSubscriber<Integer> ts = new TestSubscriber<>();
         Flowable.just(1, 2, 3).lift(new FlowableOperator<Integer, Integer>() {
 
             @Override
@@ -283,11 +284,11 @@ public class FlowableSubscribeOnTest extends RxJavaTest {
     public void deferredRequestRace() {
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
 
-            final TestSubscriber<Integer> ts = new TestSubscriber<Integer>(0L);
+            final TestSubscriber<Integer> ts = new TestSubscriber<>(0L);
 
             Worker w = Schedulers.computation().createWorker();
 
-            final SubscribeOnSubscriber<Integer> so = new SubscribeOnSubscriber<Integer>(ts, w, Flowable.<Integer>never(), true);
+            final SubscribeOnSubscriber<Integer> so = new SubscribeOnSubscriber<>(ts, w, Flowable.<Integer>never(), true);
             ts.onSubscribe(so);
 
             final BooleanSubscription bs = new BooleanSubscription();
@@ -405,5 +406,10 @@ public class FlowableSubscribeOnTest extends RxJavaTest {
         .assertValueCount(Flowable.bufferSize())
         .assertNoErrors()
         .assertComplete();
+    }
+
+    @Test
+    public void badRequest() {
+        TestHelper.assertBadRequestReported(Flowable.never().subscribeOn(ImmediateThinScheduler.INSTANCE));
     }
 }

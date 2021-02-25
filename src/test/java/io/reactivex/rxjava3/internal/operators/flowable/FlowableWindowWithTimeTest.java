@@ -16,7 +16,7 @@ package io.reactivex.rxjava3.internal.operators.flowable;
 import static org.junit.Assert.*;
 
 import java.util.*;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
 
 import org.junit.*;
@@ -31,7 +31,7 @@ import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 import io.reactivex.rxjava3.processors.*;
 import io.reactivex.rxjava3.schedulers.*;
 import io.reactivex.rxjava3.subscribers.*;
-import io.reactivex.rxjava3.testsupport.TestHelper;
+import io.reactivex.rxjava3.testsupport.*;
 
 public class FlowableWindowWithTimeTest extends RxJavaTest {
 
@@ -46,8 +46,8 @@ public class FlowableWindowWithTimeTest extends RxJavaTest {
 
     @Test
     public void timedAndCount() {
-        final List<String> list = new ArrayList<String>();
-        final List<List<String>> lists = new ArrayList<List<String>>();
+        final List<String> list = new ArrayList<>();
+        final List<List<String>> lists = new ArrayList<>();
 
         Flowable<String> source = Flowable.unsafeCreate(new Publisher<String>() {
             @Override
@@ -65,23 +65,25 @@ public class FlowableWindowWithTimeTest extends RxJavaTest {
         Flowable<Flowable<String>> windowed = source.window(100, TimeUnit.MILLISECONDS, scheduler, 2);
         windowed.subscribe(observeWindow(list, lists));
 
-        scheduler.advanceTimeTo(100, TimeUnit.MILLISECONDS);
+        scheduler.advanceTimeTo(95, TimeUnit.MILLISECONDS);
         assertEquals(1, lists.size());
         assertEquals(lists.get(0), list("one", "two"));
 
-        scheduler.advanceTimeTo(200, TimeUnit.MILLISECONDS);
-        assertEquals(2, lists.size());
-        assertEquals(lists.get(1), list("three", "four"));
+        scheduler.advanceTimeTo(195, TimeUnit.MILLISECONDS);
+        assertEquals(3, lists.size());
+        assertTrue(lists.get(1).isEmpty());
+        assertEquals(lists.get(2), list("three", "four"));
 
         scheduler.advanceTimeTo(300, TimeUnit.MILLISECONDS);
-        assertEquals(3, lists.size());
-        assertEquals(lists.get(2), list("five"));
+        assertEquals(5, lists.size());
+        assertTrue(lists.get(3).isEmpty());
+        assertEquals(lists.get(4), list("five"));
     }
 
     @Test
     public void timed() {
-        final List<String> list = new ArrayList<String>();
-        final List<List<String>> lists = new ArrayList<List<String>>();
+        final List<String> list = new ArrayList<>();
+        final List<List<String>> lists = new ArrayList<>();
 
         Flowable<String> source = Flowable.unsafeCreate(new Publisher<String>() {
             @Override
@@ -109,7 +111,7 @@ public class FlowableWindowWithTimeTest extends RxJavaTest {
     }
 
     private List<String> list(String... args) {
-        List<String> list = new ArrayList<String>();
+        List<String> list = new ArrayList<>();
         for (String arg : args) {
             list.add(arg);
         }
@@ -141,7 +143,7 @@ public class FlowableWindowWithTimeTest extends RxJavaTest {
                 stringFlowable.subscribe(new DefaultSubscriber<T>() {
                     @Override
                     public void onComplete() {
-                        lists.add(new ArrayList<T>(list));
+                        lists.add(new ArrayList<>(list));
                         list.clear();
                     }
 
@@ -164,8 +166,8 @@ public class FlowableWindowWithTimeTest extends RxJavaTest {
         Flowable<Flowable<Integer>> source = Flowable.range(1, 10)
                 .window(1, TimeUnit.MINUTES, scheduler, 3);
 
-        final List<Integer> list = new ArrayList<Integer>();
-        final List<List<Integer>> lists = new ArrayList<List<Integer>>();
+        final List<Integer> list = new ArrayList<>();
+        final List<List<Integer>> lists = new ArrayList<>();
 
         source.subscribe(observeWindow(list, lists));
 
@@ -182,7 +184,7 @@ public class FlowableWindowWithTimeTest extends RxJavaTest {
 
     @Test
     public void takeFlatMapCompletes() {
-        TestSubscriber<Integer> ts = new TestSubscriber<Integer>();
+        TestSubscriber<Integer> ts = new TestSubscriber<>();
 
         final AtomicInteger wip = new AtomicInteger();
 
@@ -432,7 +434,6 @@ public class FlowableWindowWithTimeTest extends RxJavaTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     public void exactBackpressure() {
         TestScheduler scheduler = new TestScheduler();
 
@@ -447,7 +448,6 @@ public class FlowableWindowWithTimeTest extends RxJavaTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     public void skipBackpressure() {
         TestScheduler scheduler = new TestScheduler();
 
@@ -462,7 +462,6 @@ public class FlowableWindowWithTimeTest extends RxJavaTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     public void overlapBackpressure() {
         TestScheduler scheduler = new TestScheduler();
 
@@ -512,14 +511,24 @@ public class FlowableWindowWithTimeTest extends RxJavaTest {
 
             PublishProcessor<Integer> pp = PublishProcessor.create();
 
+            final TestSubscriber<Integer> tsInner = new TestSubscriber<>();
+
             TestSubscriber<Flowable<Integer>> ts = pp.window(2, 1, TimeUnit.SECONDS, scheduler)
+            .doOnNext(new Consumer<Flowable<Integer>>() {
+                @Override
+                public void accept(Flowable<Integer> w) throws Throwable {
+                    w.subscribe(tsInner);
+                }
+            }) // avoid abandonment
             .test(1L);
 
             scheduler.advanceTimeBy(2, TimeUnit.SECONDS);
 
             ts.assertError(MissingBackpressureException.class);
 
-            TestHelper.assertError(errors, 0, MissingBackpressureException.class);
+            tsInner.assertError(MissingBackpressureException.class);
+
+            assertTrue(errors.isEmpty());
         } finally {
             RxJavaPlugins.reset();
         }
@@ -547,6 +556,7 @@ public class FlowableWindowWithTimeTest extends RxJavaTest {
     }
 
     @Test
+    @SuppressUndeliverable
     public void exactBoundaryError() {
         Flowable.error(new TestException())
         .window(1, TimeUnit.DAYS, Schedulers.single(), 2, true)
@@ -818,6 +828,12 @@ public class FlowableWindowWithTimeTest extends RxJavaTest {
         FlowableProcessor<Integer> ps = PublishProcessor.<Integer>create();
 
         TestSubscriber<Flowable<Integer>> ts = ps.window(5, TimeUnit.MILLISECONDS, scheduler, 5, true)
+        .doOnNext(new Consumer<Flowable<Integer>>() {
+            @Override
+            public void accept(Flowable<Integer> w) throws Throwable {
+                w.subscribe();
+            }
+        }) // avoid abandonment
         .test();
 
         // window #1
@@ -848,7 +864,6 @@ public class FlowableWindowWithTimeTest extends RxJavaTest {
         });
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void firstWindowMissingBackpressure() {
         Flowable.never()
@@ -916,6 +931,421 @@ public class FlowableWindowWithTimeTest extends RxJavaTest {
         ts.assertValueCount(1)
         .assertError(MissingBackpressureException.class)
         .assertNotComplete();
+    }
+
+    @Test
+    public void exactTimeBoundNoInterruptWindowOutputOnComplete() throws Exception {
+        final AtomicBoolean isInterrupted = new AtomicBoolean();
+
+        final PublishProcessor<Integer> pp = PublishProcessor.create();
+
+        final CountDownLatch doOnNextDone = new CountDownLatch(1);
+        final CountDownLatch secondWindowProcessing = new CountDownLatch(1);
+
+        pp.window(100, TimeUnit.MILLISECONDS)
+        .doOnNext(new Consumer<Flowable<Integer>>() {
+            int count;
+            @Override
+            public void accept(Flowable<Integer> v) throws Exception {
+                System.out.println(Thread.currentThread());
+                if (count++ == 1) {
+                    secondWindowProcessing.countDown();
+                    try {
+                        Thread.sleep(200);
+                        isInterrupted.set(Thread.interrupted());
+                    } catch (InterruptedException ex) {
+                        isInterrupted.set(true);
+                    }
+                    doOnNextDone.countDown();
+                }
+            }
+        })
+        .test();
+
+        pp.onNext(1);
+
+        assertTrue(secondWindowProcessing.await(5, TimeUnit.SECONDS));
+
+        pp.onComplete();
+
+        assertTrue(doOnNextDone.await(5, TimeUnit.SECONDS));
+
+        assertFalse("The doOnNext got interrupted!", isInterrupted.get());
+    }
+
+    @Test
+    @SuppressUndeliverable
+    public void exactTimeBoundNoInterruptWindowOutputOnError() throws Exception {
+        final AtomicBoolean isInterrupted = new AtomicBoolean();
+
+        final PublishProcessor<Integer> pp = PublishProcessor.create();
+
+        final CountDownLatch doOnNextDone = new CountDownLatch(1);
+        final CountDownLatch secondWindowProcessing = new CountDownLatch(1);
+
+        pp.window(100, TimeUnit.MILLISECONDS)
+        .doOnNext(new Consumer<Flowable<Integer>>() {
+            int count;
+            @Override
+            public void accept(Flowable<Integer> v) throws Exception {
+                System.out.println(Thread.currentThread());
+                if (count++ == 1) {
+                    secondWindowProcessing.countDown();
+                    try {
+                        Thread.sleep(200);
+                        isInterrupted.set(Thread.interrupted());
+                    } catch (InterruptedException ex) {
+                        isInterrupted.set(true);
+                    }
+                    doOnNextDone.countDown();
+                }
+            }
+        })
+        .test();
+
+        pp.onNext(1);
+
+        assertTrue(secondWindowProcessing.await(5, TimeUnit.SECONDS));
+
+        pp.onError(new TestException());
+
+        assertTrue(doOnNextDone.await(5, TimeUnit.SECONDS));
+
+        assertFalse("The doOnNext got interrupted!", isInterrupted.get());
+    }
+
+    @Test
+    public void exactTimeAndSizeBoundNoInterruptWindowOutputOnComplete() throws Exception {
+        final AtomicBoolean isInterrupted = new AtomicBoolean();
+
+        final PublishProcessor<Integer> pp = PublishProcessor.create();
+
+        final CountDownLatch doOnNextDone = new CountDownLatch(1);
+        final CountDownLatch secondWindowProcessing = new CountDownLatch(1);
+
+        pp.window(100, TimeUnit.MILLISECONDS, 10)
+        .doOnNext(new Consumer<Flowable<Integer>>() {
+            int count;
+            @Override
+            public void accept(Flowable<Integer> v) throws Exception {
+                System.out.println(Thread.currentThread());
+                if (count++ == 1) {
+                    secondWindowProcessing.countDown();
+                    try {
+                        Thread.sleep(200);
+                        isInterrupted.set(Thread.interrupted());
+                    } catch (InterruptedException ex) {
+                        isInterrupted.set(true);
+                    }
+                    doOnNextDone.countDown();
+                }
+            }
+        })
+        .test();
+
+        pp.onNext(1);
+
+        assertTrue(secondWindowProcessing.await(5, TimeUnit.SECONDS));
+
+        pp.onComplete();
+
+        assertTrue(doOnNextDone.await(5, TimeUnit.SECONDS));
+
+        assertFalse("The doOnNext got interrupted!", isInterrupted.get());
+    }
+
+    @Test
+    @SuppressUndeliverable
+    public void exactTimeAndSizeBoundNoInterruptWindowOutputOnError() throws Exception {
+        final AtomicBoolean isInterrupted = new AtomicBoolean();
+
+        final PublishProcessor<Integer> pp = PublishProcessor.create();
+
+        final CountDownLatch doOnNextDone = new CountDownLatch(1);
+        final CountDownLatch secondWindowProcessing = new CountDownLatch(1);
+
+        pp.window(100, TimeUnit.MILLISECONDS, 10)
+        .doOnNext(new Consumer<Flowable<Integer>>() {
+            int count;
+            @Override
+            public void accept(Flowable<Integer> v) throws Exception {
+                System.out.println(Thread.currentThread());
+                if (count++ == 1) {
+                    secondWindowProcessing.countDown();
+                    try {
+                        Thread.sleep(200);
+                        isInterrupted.set(Thread.interrupted());
+                    } catch (InterruptedException ex) {
+                        isInterrupted.set(true);
+                    }
+                    doOnNextDone.countDown();
+                }
+            }
+        })
+        .test();
+
+        pp.onNext(1);
+
+        assertTrue(secondWindowProcessing.await(5, TimeUnit.SECONDS));
+
+        pp.onError(new TestException());
+
+        assertTrue(doOnNextDone.await(5, TimeUnit.SECONDS));
+
+        assertFalse("The doOnNext got interrupted!", isInterrupted.get());
+    }
+
+    @Test
+    public void skipTimeAndSizeBoundNoInterruptWindowOutputOnComplete() throws Exception {
+        final AtomicBoolean isInterrupted = new AtomicBoolean();
+
+        final PublishProcessor<Integer> pp = PublishProcessor.create();
+
+        final CountDownLatch doOnNextDone = new CountDownLatch(1);
+        final CountDownLatch secondWindowProcessing = new CountDownLatch(1);
+
+        pp.window(90, 100, TimeUnit.MILLISECONDS)
+        .doOnNext(new Consumer<Flowable<Integer>>() {
+            int count;
+            @Override
+            public void accept(Flowable<Integer> v) throws Exception {
+                System.out.println(Thread.currentThread());
+                if (count++ == 1) {
+                    secondWindowProcessing.countDown();
+                    try {
+                        Thread.sleep(200);
+                        isInterrupted.set(Thread.interrupted());
+                    } catch (InterruptedException ex) {
+                        isInterrupted.set(true);
+                    }
+                    doOnNextDone.countDown();
+                }
+            }
+        })
+        .test();
+
+        pp.onNext(1);
+
+        assertTrue(secondWindowProcessing.await(5, TimeUnit.SECONDS));
+
+        pp.onComplete();
+
+        assertTrue(doOnNextDone.await(5, TimeUnit.SECONDS));
+
+        assertFalse("The doOnNext got interrupted!", isInterrupted.get());
+    }
+
+    @Test
+    @SuppressUndeliverable
+    public void skipTimeAndSizeBoundNoInterruptWindowOutputOnError() throws Exception {
+        final AtomicBoolean isInterrupted = new AtomicBoolean();
+
+        final PublishProcessor<Integer> pp = PublishProcessor.create();
+
+        final CountDownLatch doOnNextDone = new CountDownLatch(1);
+        final CountDownLatch secondWindowProcessing = new CountDownLatch(1);
+
+        pp.window(90, 100, TimeUnit.MILLISECONDS)
+        .doOnNext(new Consumer<Flowable<Integer>>() {
+            int count;
+            @Override
+            public void accept(Flowable<Integer> v) throws Exception {
+                System.out.println(Thread.currentThread());
+                if (count++ == 1) {
+                    secondWindowProcessing.countDown();
+                    try {
+                        Thread.sleep(200);
+                        isInterrupted.set(Thread.interrupted());
+                    } catch (InterruptedException ex) {
+                        isInterrupted.set(true);
+                    }
+                    doOnNextDone.countDown();
+                }
+            }
+        })
+        .test();
+
+        pp.onNext(1);
+
+        assertTrue(secondWindowProcessing.await(5, TimeUnit.SECONDS));
+
+        pp.onError(new TestException());
+
+        assertTrue(doOnNextDone.await(5, TimeUnit.SECONDS));
+
+        assertFalse("The doOnNext got interrupted!", isInterrupted.get());
+    }
+
+    @Test
+    public void cancellingWindowCancelsUpstreamExactTime() {
+        PublishProcessor<Integer> pp = PublishProcessor.create();
+
+        TestSubscriber<Integer> ts = pp.window(10, TimeUnit.MINUTES)
+        .take(1)
+        .flatMap(new Function<Flowable<Integer>, Publisher<Integer>>() {
+            @Override
+            public Publisher<Integer> apply(Flowable<Integer> w) throws Throwable {
+                return w.take(1);
+            }
+        })
+        .test();
+
+        assertTrue(pp.hasSubscribers());
+
+        pp.onNext(1);
+
+        ts
+        .assertResult(1);
+
+        assertFalse("Processor still has subscribers!", pp.hasSubscribers());
+    }
+
+    @Test
+    public void windowAbandonmentCancelsUpstreamExactTime() {
+        PublishProcessor<Integer> pp = PublishProcessor.create();
+
+        final AtomicReference<Flowable<Integer>> inner = new AtomicReference<>();
+
+        TestSubscriber<Flowable<Integer>> ts = pp.window(10, TimeUnit.MINUTES)
+        .take(1)
+        .doOnNext(new Consumer<Flowable<Integer>>() {
+            @Override
+            public void accept(Flowable<Integer> v) throws Throwable {
+                inner.set(v);
+            }
+        })
+        .test();
+
+        assertFalse("Processor still has subscribers!", pp.hasSubscribers());
+
+        ts
+        .assertValueCount(1)
+        .assertNoErrors()
+        .assertComplete();
+
+        inner.get().test().assertResult();
+    }
+
+    @Test
+    public void cancellingWindowCancelsUpstreamExactTimeAndSize() {
+        PublishProcessor<Integer> pp = PublishProcessor.create();
+
+        TestSubscriber<Integer> ts = pp.window(10, TimeUnit.MINUTES, 100)
+        .take(1)
+        .flatMap(new Function<Flowable<Integer>, Publisher<Integer>>() {
+            @Override
+            public Publisher<Integer> apply(Flowable<Integer> w) throws Throwable {
+                return w.take(1);
+            }
+        })
+        .test();
+
+        assertTrue(pp.hasSubscribers());
+
+        pp.onNext(1);
+
+        ts
+        .assertResult(1);
+
+        assertFalse("Processor still has subscribers!", pp.hasSubscribers());
+    }
+
+    @Test
+    public void windowAbandonmentCancelsUpstreamExactTimeAndSize() {
+        PublishProcessor<Integer> pp = PublishProcessor.create();
+
+        final AtomicReference<Flowable<Integer>> inner = new AtomicReference<>();
+
+        TestSubscriber<Flowable<Integer>> ts = pp.window(10, TimeUnit.MINUTES, 100)
+        .take(1)
+        .doOnNext(new Consumer<Flowable<Integer>>() {
+            @Override
+            public void accept(Flowable<Integer> v) throws Throwable {
+                inner.set(v);
+            }
+        })
+        .test();
+
+        assertFalse("Processor still has subscribers!", pp.hasSubscribers());
+
+        ts
+        .assertValueCount(1)
+        .assertNoErrors()
+        .assertComplete();
+
+        inner.get().test().assertResult();
+    }
+
+    @Test
+    public void cancellingWindowCancelsUpstreamExactTimeSkip() {
+        PublishProcessor<Integer> pp = PublishProcessor.create();
+
+        TestSubscriber<Integer> ts = pp.window(10, 15, TimeUnit.MINUTES)
+        .take(1)
+        .flatMap(new Function<Flowable<Integer>, Publisher<Integer>>() {
+            @Override
+            public Publisher<Integer> apply(Flowable<Integer> w) throws Throwable {
+                return w.take(1);
+            }
+        })
+        .test();
+
+        assertTrue(pp.hasSubscribers());
+
+        pp.onNext(1);
+
+        ts
+        .assertResult(1);
+
+        assertFalse("Processor still has subscribers!", pp.hasSubscribers());
+    }
+
+    @Test
+    public void windowAbandonmentCancelsUpstreamExactTimeSkip() {
+        PublishProcessor<Integer> pp = PublishProcessor.create();
+
+        final AtomicReference<Flowable<Integer>> inner = new AtomicReference<>();
+
+        TestSubscriber<Flowable<Integer>> ts = pp.window(10, 15, TimeUnit.MINUTES)
+        .take(1)
+        .doOnNext(new Consumer<Flowable<Integer>>() {
+            @Override
+            public void accept(Flowable<Integer> v) throws Throwable {
+                inner.set(v);
+            }
+        })
+        .test();
+
+        assertFalse("Processor still has subscribers!", pp.hasSubscribers());
+
+        ts
+        .assertValueCount(1)
+        .assertNoErrors()
+        .assertComplete();
+
+        inner.get().test().assertResult();
+    }
+
+    @Test
+    public void badRequest() {
+        TestHelper.assertBadRequestReported(Flowable.never().window(1, TimeUnit.SECONDS));
+    }
+
+    @Test
+    public void timedBoundarySignalAndDisposeRace() {
+        for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
+            TestScheduler scheduler = new TestScheduler();
+
+            PublishProcessor<Integer> pp = PublishProcessor.create();
+
+            TestSubscriber<Flowable<Integer>> ts = pp.window(1, TimeUnit.MINUTES, scheduler, 1)
+            .test();
+
+            TestHelper.race(
+                    () -> pp.onNext(1),
+                    () -> ts.cancel()
+            );
+        }
     }
 }
 

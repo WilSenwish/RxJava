@@ -39,7 +39,7 @@ public class SingleDoAfterTerminateTest extends RxJavaTest {
         }
     };
 
-    private final TestObserver<Integer> to = new TestObserver<Integer>();
+    private final TestObserver<Integer> to = new TestObserver<>();
 
     @Test
     public void just() {
@@ -59,11 +59,6 @@ public class SingleDoAfterTerminateTest extends RxJavaTest {
         .assertFailure(TestException.class);
 
         assertAfterTerminateCalledOnce();
-    }
-
-    @Test(expected = NullPointerException.class)
-    public void afterTerminateActionNull() {
-        Single.just(1).doAfterTerminate(null);
     }
 
     @Test

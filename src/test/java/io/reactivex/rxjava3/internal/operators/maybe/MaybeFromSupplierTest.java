@@ -35,11 +35,6 @@ import io.reactivex.rxjava3.testsupport.TestHelper;
 
 public class MaybeFromSupplierTest extends RxJavaTest {
 
-    @Test(expected = NullPointerException.class)
-    public void fromSupplierNull() {
-        Maybe.fromSupplier(null);
-    }
-
     @Test
     public void fromSupplier() {
         final AtomicInteger atomicInteger = new AtomicInteger();
@@ -197,7 +192,7 @@ public class MaybeFromSupplierTest extends RxJavaTest {
 
         Observer<Object> observer = TestHelper.mockObserver();
 
-        TestObserver<String> outer = new TestObserver<String>(observer);
+        TestObserver<String> outer = new TestObserver<>(observer);
 
         fromSupplierObservable
                 .subscribeOn(Schedulers.computation())
@@ -218,5 +213,24 @@ public class MaybeFromSupplierTest extends RxJavaTest {
         // Observer must not be notified at all
         verify(observer).onSubscribe(any(Disposable.class));
         verifyNoMoreInteractions(observer);
+    }
+
+    @Test
+    public void success() {
+        Maybe.fromSupplier(() -> 1)
+        .test()
+        .assertResult(1);
+    }
+
+    @Test
+    public void disposeUpfront() throws Throwable {
+        @SuppressWarnings("unchecked")
+        Supplier<Integer> supplier = mock(Supplier.class);
+
+        Maybe.fromSupplier(supplier)
+        .test(true)
+        .assertEmpty();
+
+        verify(supplier, never()).get();
     }
 }

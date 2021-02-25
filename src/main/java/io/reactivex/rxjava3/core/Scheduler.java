@@ -13,15 +13,14 @@
 
 package io.reactivex.rxjava3.core;
 
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import io.reactivex.rxjava3.annotations.*;
 import io.reactivex.rxjava3.disposables.Disposable;
-import io.reactivex.rxjava3.exceptions.Exceptions;
 import io.reactivex.rxjava3.functions.Function;
 import io.reactivex.rxjava3.internal.disposables.*;
 import io.reactivex.rxjava3.internal.schedulers.*;
-import io.reactivex.rxjava3.internal.util.ExceptionHelper;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 import io.reactivex.rxjava3.schedulers.SchedulerRunnableIntrospection;
 
@@ -61,8 +60,9 @@ import io.reactivex.rxjava3.schedulers.SchedulerRunnableIntrospection;
  * interface which can grant access to the original or hooked {@code Runnable}, thus, a repeated {@code RxJavaPlugins.onSchedule}
  * can detect the earlier hook and not apply a new one over again.
  * <p>
- * The default implementation of {@link #now(TimeUnit)} and {@link Worker#now(TimeUnit)} methods to return current
- * {@link System#currentTimeMillis()} value in the desired time unit. Custom {@code Scheduler} implementations can override this
+ * The default implementation of {@link #now(TimeUnit)} and {@link Worker#now(TimeUnit)} methods to return current {@link System#currentTimeMillis()}
+ * value in the desired time unit, unless {@code rx3.scheduler.use-nanotime} (boolean) is set. When the property is set to
+ * {@code true}, the method uses {@link System#nanoTime()} as its basis instead. Custom {@code Scheduler} implementations can override this
  * to provide specialized time accounting (such as virtual time to be advanced programmatically).
  * Note that operators requiring a {@code Scheduler} may rely on either of the {@code now()} calls provided by
  * {@code Scheduler} or {@code Worker} respectively, therefore, it is recommended they represent a logically
@@ -74,14 +74,14 @@ import io.reactivex.rxjava3.schedulers.SchedulerRunnableIntrospection;
  * based on the relative time between it and {@link Worker#now(TimeUnit)}. However, drifts or changes in the
  * system clock could affect this calculation either by scheduling subsequent runs too frequently or too far apart.
  * Therefore, the default implementation uses the {@link #clockDriftTolerance()} value (set via
- * {@code rx3.scheduler.drift-tolerance} in minutes) to detect a drift in {@link Worker#now(TimeUnit)} and
- * re-adjust the absolute/relative time calculation accordingly.
+ * {@code rx3.scheduler.drift-tolerance} and {@code rx3.scheduler.drift-tolerance-unit}) to detect a
+ * drift in {@link Worker#now(TimeUnit)} and re-adjust the absolute/relative time calculation accordingly.
  * <p>
  * The default implementations of {@link #start()} and {@link #shutdown()} do nothing and should be overridden if the
  * underlying task-execution scheme supports stopping and restarting itself.
  * <p>
  * If the {@code Scheduler} is shut down or a {@code Worker} is disposed, the {@code schedule} methods
- * should return the {@link io.reactivex.rxjava3.disposables.Disposables#disposed()} singleton instance indicating the shut down/disposed
+ * should return the {@link Disposable#disposed()} singleton instance indicating the shut down/disposed
  * state to the caller. Since the shutdown or dispose can happen from any thread, the {@code schedule} implementations
  * should make best effort to cancel tasks immediately after those tasks have been submitted to the
  * underlying task-execution scheme if the shutdown/dispose was detected after this submission.
@@ -90,19 +90,72 @@ import io.reactivex.rxjava3.schedulers.SchedulerRunnableIntrospection;
  */
 public abstract class Scheduler {
     /**
+     * Value representing whether to use {@link System#nanoTime()}, or default as clock for {@link #now(TimeUnit)}
+     * and {@link Scheduler.Worker#now(TimeUnit)}.
+     * <p>
+     * Associated system parameter:
+     * <ul>
+     *   <li>{@code rx3.scheduler.use-nanotime}, boolean, default {@code false}
+     * </ul>
+     */
+    static boolean IS_DRIFT_USE_NANOTIME = Boolean.getBoolean("rx3.scheduler.use-nanotime");
+
+    /**
+     * Returns the current clock time depending on state of {@link Scheduler#IS_DRIFT_USE_NANOTIME} in given {@code unit}
+     * <p>
+     * By default {@link System#currentTimeMillis()} will be used as the clock. When the property is set
+     * {@link System#nanoTime()} will be used.
+     * <p>
+     * @param unit the time unit
+     * @return the 'current time' in given unit
+     * @throws NullPointerException if {@code unit} is {@code null}
+     */
+    static long computeNow(TimeUnit unit) {
+        if (!IS_DRIFT_USE_NANOTIME) {
+            return unit.convert(System.currentTimeMillis(), TimeUnit.MILLISECONDS);
+        }
+        return unit.convert(System.nanoTime(), TimeUnit.NANOSECONDS);
+    }
+
+    /**
      * The tolerance for a clock drift in nanoseconds where the periodic scheduler will rebase.
      * <p>
-     * The associated system parameter, {@code rx3.scheduler.drift-tolerance}, expects its value in minutes.
+     * Associated system parameters:
+     * <ul>
+     * <li>{@code rx3.scheduler.drift-tolerance}, long, default {@code 15}</li>
+     * <li>{@code rx3.scheduler.drift-tolerance-unit}, string, default {@code minutes},
+     *     supports {@code seconds} and {@code milliseconds}.
+     * </ul>
      */
-    static final long CLOCK_DRIFT_TOLERANCE_NANOSECONDS;
-    static {
-        CLOCK_DRIFT_TOLERANCE_NANOSECONDS = TimeUnit.MINUTES.toNanos(
-                Long.getLong("rx3.scheduler.drift-tolerance", 15));
+    static final long CLOCK_DRIFT_TOLERANCE_NANOSECONDS =
+            computeClockDrift(
+                    Long.getLong("rx3.scheduler.drift-tolerance", 15),
+                    System.getProperty("rx3.scheduler.drift-tolerance-unit", "minutes")
+            );
+
+    /**
+     * Returns the clock drift tolerance in nanoseconds based on the input selection.
+     * @param time the time value
+     * @param timeUnit the time unit string
+     * @return the time amount in nanoseconds
+     */
+    static long computeClockDrift(long time, String timeUnit) {
+        if ("seconds".equalsIgnoreCase(timeUnit)) {
+            return TimeUnit.SECONDS.toNanos(time);
+        } else if ("milliseconds".equalsIgnoreCase(timeUnit)) {
+            return TimeUnit.MILLISECONDS.toNanos(time);
+        }
+        return TimeUnit.MINUTES.toNanos(time);
     }
 
     /**
      * Returns the clock drift tolerance in nanoseconds.
-     * <p>Related system property: {@code rx3.scheduler.drift-tolerance} in minutes.
+     * <p>Related system properties:
+     * <ul>
+     * <li>{@code rx3.scheduler.drift-tolerance}, long, default {@code 15}</li>
+     * <li>{@code rx3.scheduler.drift-tolerance-unit}, string, default {@code minutes},
+     *     supports {@code seconds} and {@code milliseconds}.
+     * </ul>
      * @return the tolerance in nanoseconds
      * @since 2.0
      */
@@ -128,10 +181,11 @@ public abstract class Scheduler {
      * Returns the 'current time' of the Scheduler in the specified time unit.
      * @param unit the time unit
      * @return the 'current time'
+     * @throws NullPointerException if {@code unit} is {@code null}
      * @since 2.0
      */
     public long now(@NonNull TimeUnit unit) {
-        return unit.convert(System.currentTimeMillis(), TimeUnit.MILLISECONDS);
+        return computeNow(unit);
     }
 
     /**
@@ -172,6 +226,7 @@ public abstract class Scheduler {
      * @param run the task to execute
      *
      * @return the Disposable instance that let's one cancel this particular task.
+     * @throws NullPointerException if {@code run} is {@code null}
      * @since 2.0
      */
     @NonNull
@@ -190,6 +245,7 @@ public abstract class Scheduler {
      * @param delay the delay amount, non-positive values indicate non-delayed scheduling
      * @param unit the unit of measure of the delay amount
      * @return the Disposable that let's one cancel this particular delayed task.
+     * @throws NullPointerException if {@code run} or {@code unit} is {@code null}
      * @since 2.0
      */
     @NonNull
@@ -222,6 +278,7 @@ public abstract class Scheduler {
      * @param period the period at which the task should be re-executed
      * @param unit the unit of measure of the delay amount
      * @return the Disposable that let's one cancel this particular delayed task.
+     * @throws NullPointerException if {@code run} or {@code unit} is {@code null}
      * @since 2.0
      */
     @NonNull
@@ -313,11 +370,13 @@ public abstract class Scheduler {
      * @param combine the function that takes a two-level nested Flowable sequence of a Completable and returns
      * the Completable that will be subscribed to and should trigger the execution of the scheduled Actions.
      * @return the Scheduler with the customized execution behavior
+     * @throws NullPointerException if {@code combine} is {@code null}
      * @since 2.1
      */
     @SuppressWarnings("unchecked")
     @NonNull
     public <S extends Scheduler & Disposable> S when(@NonNull Function<Flowable<Flowable<Completable>>, Completable> combine) {
+        Objects.requireNonNull(combine, "combine is null");
         return (S) new SchedulerWhen(combine, this);
     }
 
@@ -332,8 +391,9 @@ public abstract class Scheduler {
      * track the individual {@code Runnable} tasks while they are waiting to be executed (with or without delay) so that
      * {@link #dispose()} can prevent their execution or potentially interrupt them if they are currently running.
      * <p>
-     * The default implementation of the {@link #now(TimeUnit)} method returns current
-     * {@link System#currentTimeMillis()} value in the desired time unit. Custom {@code Worker} implementations can override this
+     * The default implementation of the {@link #now(TimeUnit)} method returns current {@link System#currentTimeMillis()}
+     * value in the desired time unit, unless {@code rx3.scheduler.use-nanotime} (boolean) is set. When the property is set to
+     * {@code true}, the method uses {@link System#nanoTime()} as its basis instead. Custom {@code Worker} implementations can override this
      * to provide specialized time accounting (such as virtual time to be advanced programmatically).
      * Note that operators requiring a scheduler may rely on either of the {@code now()} calls provided by
      * {@code Scheduler} or {@code Worker} respectively, therefore, it is recommended they represent a logically
@@ -345,11 +405,11 @@ public abstract class Scheduler {
      * based on the relative time between it and {@link #now(TimeUnit)}. However, drifts or changes in the
      * system clock would affect this calculation either by scheduling subsequent runs too frequently or too far apart.
      * Therefore, the default implementation uses the {@link #clockDriftTolerance()} value (set via
-     * {@code rx3.scheduler.drift-tolerance} in minutes) to detect a drift in {@link #now(TimeUnit)} and
+     * {@code rx3.scheduler.drift-tolerance} and {@code rx3.scheduler.drift-tolerance-unit}) to detect a drift in {@link #now(TimeUnit)} and
      * re-adjust the absolute/relative time calculation accordingly.
      * <p>
      * If the {@code Worker} is disposed, the {@code schedule} methods
-     * should return the {@link io.reactivex.rxjava3.disposables.Disposables#disposed()} singleton instance indicating the disposed
+     * should return the {@link Disposable#disposed()} singleton instance indicating the disposed
      * state to the caller. Since the {@link #dispose()} call can happen on any thread, the {@code schedule} implementations
      * should make best effort to cancel tasks immediately after those tasks have been submitted to the
      * underlying task-execution scheme if the dispose was detected after this submission.
@@ -365,6 +425,7 @@ public abstract class Scheduler {
          * @param run
          *            Runnable to schedule
          * @return a Disposable to be able to unsubscribe the action (cancel it if not executed)
+         * @throws NullPointerException if {@code run} is {@code null}
          */
         @NonNull
         public Disposable schedule(@NonNull Runnable run) {
@@ -386,6 +447,7 @@ public abstract class Scheduler {
          * @param unit
          *            the time unit of {@code delayTime}
          * @return a Disposable to be able to unsubscribe the action (cancel it if not executed)
+         * @throws NullPointerException if {@code run} or {@code unit} is {@code null}
          */
         @NonNull
         public abstract Disposable schedule(@NonNull Runnable run, long delay, @NonNull TimeUnit unit);
@@ -417,6 +479,7 @@ public abstract class Scheduler {
          * @param unit
          *            the time unit of {@code period}
          * @return a Disposable to be able to unsubscribe the action (cancel it if not executed)
+         * @throws NullPointerException if {@code run} or {@code unit} is {@code null}
          */
         @NonNull
         public Disposable schedulePeriodically(@NonNull Runnable run, final long initialDelay, final long period, @NonNull final TimeUnit unit) {
@@ -445,10 +508,11 @@ public abstract class Scheduler {
          * Returns the 'current time' of the Worker in the specified time unit.
          * @param unit the time unit
          * @return the 'current time'
+         * @throws NullPointerException if {@code unit} is {@code null}
          * @since 2.0
          */
         public long now(@NonNull TimeUnit unit) {
-            return unit.convert(System.currentTimeMillis(), TimeUnit.MILLISECONDS);
+            return computeNow(unit);
         }
 
         /**
@@ -531,9 +595,10 @@ public abstract class Scheduler {
                 try {
                     run.run();
                 } catch (Throwable ex) {
-                    Exceptions.throwIfFatal(ex);
-                    worker.dispose();
-                    throw ExceptionHelper.wrapOrThrow(ex);
+                    // Exceptions.throwIfFatal(ex); nowhere to go
+                    dispose();
+                    RxJavaPlugins.onError(ex);
+                    throw ex;
                 }
             }
         }
@@ -575,7 +640,13 @@ public abstract class Scheduler {
         public void run() {
             runner = Thread.currentThread();
             try {
-                decoratedRun.run();
+                try {
+                    decoratedRun.run();
+                } catch (Throwable ex) {
+                    // Exceptions.throwIfFatal(e); nowhere to go
+                    RxJavaPlugins.onError(ex);
+                    throw ex;
+                }
             } finally {
                 dispose();
                 runner = null;

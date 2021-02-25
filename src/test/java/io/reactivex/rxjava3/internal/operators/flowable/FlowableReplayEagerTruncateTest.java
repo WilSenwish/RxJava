@@ -732,14 +732,21 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
 
     @Test
     public void boundedReplayBuffer() {
-        BoundedReplayBuffer<Integer> buf = new BoundedReplayBuffer<Integer>(true);
+        BoundedReplayBuffer<Integer> buf = new BoundedReplayBuffer<Integer>(true) {
+            private static final long serialVersionUID = -9081211580719235896L;
+
+            @Override
+            void truncate() {
+            }
+        };
+
         buf.addLast(new Node(1, 0));
         buf.addLast(new Node(2, 1));
         buf.addLast(new Node(3, 2));
         buf.addLast(new Node(4, 3));
         buf.addLast(new Node(5, 4));
 
-        List<Integer> values = new ArrayList<Integer>();
+        List<Integer> values = new ArrayList<>();
         buf.collect(values);
 
         Assert.assertEquals(Arrays.asList(1, 2, 3, 4, 5), values);
@@ -762,8 +769,8 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
     @Test
     public void timedAndSizedTruncation() {
         TestScheduler test = new TestScheduler();
-        SizeAndTimeBoundReplayBuffer<Integer> buf = new SizeAndTimeBoundReplayBuffer<Integer>(2, 2000, TimeUnit.MILLISECONDS, test, true);
-        List<Integer> values = new ArrayList<Integer>();
+        SizeAndTimeBoundReplayBuffer<Integer> buf = new SizeAndTimeBoundReplayBuffer<>(2, 2000, TimeUnit.MILLISECONDS, test, true);
+        List<Integer> values = new ArrayList<>();
 
         buf.next(1);
         test.advanceTimeBy(1, TimeUnit.SECONDS);
@@ -808,8 +815,8 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
                 });
         ConnectableFlowable<Integer> cf = source.replay();
 
-        TestSubscriberEx<Integer> ts1 = new TestSubscriberEx<Integer>(10L);
-        TestSubscriberEx<Integer> ts2 = new TestSubscriberEx<Integer>(90L);
+        TestSubscriberEx<Integer> ts1 = new TestSubscriberEx<>(10L);
+        TestSubscriberEx<Integer> ts2 = new TestSubscriberEx<>(90L);
 
         cf.subscribe(ts1);
         cf.subscribe(ts2);
@@ -839,8 +846,8 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
                 });
         ConnectableFlowable<Integer> cf = source.replay(50, true);
 
-        TestSubscriberEx<Integer> ts1 = new TestSubscriberEx<Integer>(10L);
-        TestSubscriberEx<Integer> ts2 = new TestSubscriberEx<Integer>(90L);
+        TestSubscriberEx<Integer> ts1 = new TestSubscriberEx<>(10L);
+        TestSubscriberEx<Integer> ts2 = new TestSubscriberEx<>(90L);
 
         cf.subscribe(ts1);
         cf.subscribe(ts2);
@@ -862,7 +869,7 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
     public void coldReplayNoBackpressure() {
         Flowable<Integer> source = Flowable.range(0, 1000).replay().autoConnect();
 
-        TestSubscriberEx<Integer> ts = new TestSubscriberEx<Integer>();
+        TestSubscriberEx<Integer> ts = new TestSubscriberEx<>();
 
         source.subscribe(ts);
 
@@ -880,7 +887,7 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
     public void coldReplayBackpressure() {
         Flowable<Integer> source = Flowable.range(0, 1000).replay().autoConnect();
 
-        TestSubscriber<Integer> ts = new TestSubscriber<Integer>(0L);
+        TestSubscriber<Integer> ts = new TestSubscriber<>(0L);
         ts.request(10);
 
         source.subscribe(ts);
@@ -961,7 +968,7 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
 
     @Test
     public void take() {
-        TestSubscriberEx<Integer> ts = new TestSubscriberEx<Integer>();
+        TestSubscriberEx<Integer> ts = new TestSubscriberEx<>();
 
         Flowable<Integer> cached = Flowable.range(1, 100).replay().autoConnect();
         cached.take(10).subscribe(ts);
@@ -975,7 +982,7 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
     public void async() {
         Flowable<Integer> source = Flowable.range(1, 10000);
         for (int i = 0; i < 100; i++) {
-            TestSubscriberEx<Integer> ts1 = new TestSubscriberEx<Integer>();
+            TestSubscriberEx<Integer> ts1 = new TestSubscriberEx<>();
 
             Flowable<Integer> cached = source.replay().autoConnect();
 
@@ -986,7 +993,7 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
             ts1.assertTerminated();
             assertEquals(10000, ts1.values().size());
 
-            TestSubscriberEx<Integer> ts2 = new TestSubscriberEx<Integer>();
+            TestSubscriberEx<Integer> ts2 = new TestSubscriberEx<>();
             cached.observeOn(Schedulers.computation()).subscribe(ts2);
 
             ts2.awaitDone(2, TimeUnit.SECONDS);
@@ -1005,14 +1012,14 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
 
         Flowable<Long> output = cached.observeOn(Schedulers.computation(), false, 1024);
 
-        List<TestSubscriberEx<Long>> list = new ArrayList<TestSubscriberEx<Long>>(100);
+        List<TestSubscriberEx<Long>> list = new ArrayList<>(100);
         for (int i = 0; i < 100; i++) {
-            TestSubscriberEx<Long> ts = new TestSubscriberEx<Long>();
+            TestSubscriberEx<Long> ts = new TestSubscriberEx<>();
             list.add(ts);
             output.skip(i * 10).take(10).subscribe(ts);
         }
 
-        List<Long> expected = new ArrayList<Long>();
+        List<Long> expected = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
             expected.add((long)(i - 10));
         }
@@ -1046,7 +1053,7 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
             }
         });
 
-        TestSubscriberEx<Integer> ts = new TestSubscriberEx<Integer>();
+        TestSubscriberEx<Integer> ts = new TestSubscriberEx<>();
         firehose.replay().autoConnect().observeOn(Schedulers.computation()).takeLast(100).subscribe(ts);
 
         ts.awaitDone(3, TimeUnit.SECONDS);
@@ -1062,14 +1069,14 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
                 .concatWith(Flowable.<Integer>error(new TestException()))
                 .replay().autoConnect();
 
-        TestSubscriberEx<Integer> ts = new TestSubscriberEx<Integer>();
+        TestSubscriberEx<Integer> ts = new TestSubscriberEx<>();
         source.subscribe(ts);
 
         ts.assertValues(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
         ts.assertNotComplete();
         Assert.assertEquals(1, ts.errors().size());
 
-        TestSubscriberEx<Integer> ts2 = new TestSubscriberEx<Integer>();
+        TestSubscriberEx<Integer> ts2 = new TestSubscriberEx<>();
         source.subscribe(ts2);
 
         ts2.assertValues(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
@@ -1110,7 +1117,7 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
     public void unboundedLeavesEarly() {
         PublishProcessor<Integer> source = PublishProcessor.create();
 
-        final List<Long> requests = new ArrayList<Long>();
+        final List<Long> requests = new ArrayList<>();
 
         Flowable<Integer> out = source
                 .doOnRequest(new LongConsumer() {
@@ -1120,8 +1127,8 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
                     }
                 }).replay().autoConnect();
 
-        TestSubscriber<Integer> ts1 = new TestSubscriber<Integer>(5L);
-        TestSubscriber<Integer> ts2 = new TestSubscriber<Integer>(10L);
+        TestSubscriber<Integer> ts1 = new TestSubscriber<>(5L);
+        TestSubscriber<Integer> ts2 = new TestSubscriber<>(10L);
 
         out.subscribe(ts1);
         out.subscribe(ts2);
@@ -1135,7 +1142,7 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
         ConnectableFlowable<Integer> source = Flowable.range(1, 10).replay(1, true);
         source.connect();
 
-        TestSubscriber<Integer> ts1 = new TestSubscriber<Integer>(2L);
+        TestSubscriber<Integer> ts1 = new TestSubscriber<>(2L);
 
         source.subscribe(ts1);
 
@@ -1143,7 +1150,7 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
         ts1.assertNoErrors();
         ts1.cancel();
 
-        TestSubscriber<Integer> ts2 = new TestSubscriber<Integer>(2L);
+        TestSubscriber<Integer> ts2 = new TestSubscriber<>(2L);
 
         source.subscribe(ts2);
 
@@ -1151,7 +1158,7 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
         ts2.assertNoErrors();
         ts2.cancel();
 
-        TestSubscriber<Integer> ts21 = new TestSubscriber<Integer>(1L);
+        TestSubscriber<Integer> ts21 = new TestSubscriber<>(1L);
 
         source.subscribe(ts21);
 
@@ -1159,7 +1166,7 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
         ts21.assertNoErrors();
         ts21.cancel();
 
-        TestSubscriber<Integer> ts22 = new TestSubscriber<Integer>(1L);
+        TestSubscriber<Integer> ts22 = new TestSubscriber<>(1L);
 
         source.subscribe(ts22);
 
@@ -1167,7 +1174,7 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
         ts22.assertNoErrors();
         ts22.cancel();
 
-        TestSubscriber<Integer> ts3 = new TestSubscriber<Integer>();
+        TestSubscriber<Integer> ts3 = new TestSubscriber<>();
 
         source.subscribe(ts3);
 
@@ -1182,7 +1189,7 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
         ConnectableFlowable<Integer> source = Flowable.range(1, 10).replay(2, true);
         source.connect();
 
-        TestSubscriber<Integer> ts1 = new TestSubscriber<Integer>(2L);
+        TestSubscriber<Integer> ts1 = new TestSubscriber<>(2L);
 
         source.subscribe(ts1);
 
@@ -1190,7 +1197,7 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
         ts1.assertNoErrors();
         ts1.cancel();
 
-        TestSubscriber<Integer> ts11 = new TestSubscriber<Integer>(2L);
+        TestSubscriber<Integer> ts11 = new TestSubscriber<>(2L);
 
         source.subscribe(ts11);
 
@@ -1198,7 +1205,7 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
         ts11.assertNoErrors();
         ts11.cancel();
 
-        TestSubscriber<Integer> ts2 = new TestSubscriber<Integer>(3L);
+        TestSubscriber<Integer> ts2 = new TestSubscriber<>(3L);
 
         source.subscribe(ts2);
 
@@ -1206,7 +1213,7 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
         ts2.assertNoErrors();
         ts2.cancel();
 
-        TestSubscriber<Integer> ts21 = new TestSubscriber<Integer>(1L);
+        TestSubscriber<Integer> ts21 = new TestSubscriber<>(1L);
 
         source.subscribe(ts21);
 
@@ -1214,7 +1221,7 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
         ts21.assertNoErrors();
         ts21.cancel();
 
-        TestSubscriber<Integer> ts22 = new TestSubscriber<Integer>(1L);
+        TestSubscriber<Integer> ts22 = new TestSubscriber<>(1L);
 
         source.subscribe(ts22);
 
@@ -1222,7 +1229,7 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
         ts22.assertNoErrors();
         ts22.cancel();
 
-        TestSubscriber<Integer> ts3 = new TestSubscriber<Integer>();
+        TestSubscriber<Integer> ts3 = new TestSubscriber<>();
 
         source.subscribe(ts3);
 
@@ -1286,8 +1293,8 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
             final ConnectableFlowable<Integer> cf = Flowable.range(1, 3).replay();
 
-            final TestSubscriber<Integer> ts1 = new TestSubscriber<Integer>();
-            final TestSubscriber<Integer> ts2 = new TestSubscriber<Integer>();
+            final TestSubscriber<Integer> ts1 = new TestSubscriber<>();
+            final TestSubscriber<Integer> ts2 = new TestSubscriber<>();
 
             Runnable r1 = new Runnable() {
                 @Override
@@ -1312,8 +1319,8 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
             final ConnectableFlowable<Integer> cf = Flowable.range(1, 3).replay();
 
-            final TestSubscriber<Integer> ts1 = new TestSubscriber<Integer>();
-            final TestSubscriber<Integer> ts2 = new TestSubscriber<Integer>();
+            final TestSubscriber<Integer> ts1 = new TestSubscriber<>();
+            final TestSubscriber<Integer> ts2 = new TestSubscriber<>();
 
             cf.subscribe(ts1);
 
@@ -1412,7 +1419,7 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
 
             final ConnectableFlowable<Integer> cf = pp.replay();
 
-            final TestSubscriber<Integer> ts1 = new TestSubscriber<Integer>();
+            final TestSubscriber<Integer> ts1 = new TestSubscriber<>();
 
             Runnable r1 = new Runnable() {
                 @Override
@@ -1441,7 +1448,7 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
 
             final ConnectableFlowable<Integer> cf = pp.replay();
 
-            final TestSubscriber<Integer> ts1 = new TestSubscriber<Integer>();
+            final TestSubscriber<Integer> ts1 = new TestSubscriber<>();
 
             cf.subscribe(ts1);
 
@@ -1470,7 +1477,7 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
         for (int i = 0; i < TestHelper.RACE_DEFAULT_LOOPS; i++) {
             final ConnectableFlowable<Integer> cf = Flowable.range(1, 1000).replay();
 
-            final TestSubscriber<Integer> ts1 = new TestSubscriber<Integer>();
+            final TestSubscriber<Integer> ts1 = new TestSubscriber<>();
 
             cf.connect();
 
@@ -1592,12 +1599,12 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
     @Test
     public void timedAndSizedTruncationError() {
         TestScheduler test = new TestScheduler();
-        SizeAndTimeBoundReplayBuffer<Integer> buf = new SizeAndTimeBoundReplayBuffer<Integer>(2, 2000, TimeUnit.MILLISECONDS, test, true);
+        SizeAndTimeBoundReplayBuffer<Integer> buf = new SizeAndTimeBoundReplayBuffer<>(2, 2000, TimeUnit.MILLISECONDS, test, true);
 
         Assert.assertFalse(buf.hasCompleted());
         Assert.assertFalse(buf.hasError());
 
-        List<Integer> values = new ArrayList<Integer>();
+        List<Integer> values = new ArrayList<>();
 
         buf.next(1);
         test.advanceTimeBy(1, TimeUnit.SECONDS);
@@ -1635,8 +1642,8 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
 
     @Test
     public void sizedTruncation() {
-        SizeBoundReplayBuffer<Integer> buf = new SizeBoundReplayBuffer<Integer>(2, true);
-        List<Integer> values = new ArrayList<Integer>();
+        SizeBoundReplayBuffer<Integer> buf = new SizeBoundReplayBuffer<>(2, true);
+        List<Integer> values = new ArrayList<>();
 
         buf.next(1);
         buf.next(2);
@@ -1914,19 +1921,6 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
         })
         .test()
         .assertFailure(TestException.class);
-    }
-
-    @Test
-    public void currentDisposedWhenConnecting() {
-        FlowableReplay<Integer> fr = (FlowableReplay<Integer>)FlowableReplay.create(Flowable.<Integer>never(), 16, true);
-        fr.connect();
-
-        fr.current.get().dispose();
-        assertTrue(fr.current.get().isDisposed());
-
-        fr.connect();
-
-        assertFalse(fr.current.get().isDisposed());
     }
 
     @Test
@@ -2267,5 +2261,86 @@ public class FlowableReplayEagerTruncateTest extends RxJavaTest {
         .test()
         .assertComplete()
         .assertNoErrors();
+    }
+
+    @Test
+    public void disposeNoNeedForResetSizeBound() {
+        PublishProcessor<Integer> pp = PublishProcessor.create();
+
+        ConnectableFlowable<Integer> cf = pp.replay(10, true);
+
+        TestSubscriber<Integer> ts = cf.test();
+
+        Disposable d = cf.connect();
+
+        pp.onNext(1);
+
+        d.dispose();
+
+        ts = cf.test();
+
+        ts.assertEmpty();
+
+        cf.connect();
+
+        ts.assertEmpty();
+
+        pp.onNext(2);
+
+        ts.assertValuesOnly(2);
+    }
+
+    @Test
+    public void disposeNoNeedForResetTimeBound() {
+        PublishProcessor<Integer> pp = PublishProcessor.create();
+
+        ConnectableFlowable<Integer> cf = pp.replay(10, TimeUnit.MINUTES, Schedulers.single(), true);
+
+        TestSubscriber<Integer> ts = cf.test();
+
+        Disposable d = cf.connect();
+
+        pp.onNext(1);
+
+        d.dispose();
+
+        ts = cf.test();
+
+        ts.assertEmpty();
+
+        cf.connect();
+
+        ts.assertEmpty();
+
+        pp.onNext(2);
+
+        ts.assertValuesOnly(2);
+    }
+
+    @Test
+    public void disposeNoNeedForResetTimeAndSIzeBound() {
+        PublishProcessor<Integer> pp = PublishProcessor.create();
+
+        ConnectableFlowable<Integer> cf = pp.replay(10, 10, TimeUnit.MINUTES, Schedulers.single(), true);
+
+        TestSubscriber<Integer> ts = cf.test();
+
+        Disposable d = cf.connect();
+
+        pp.onNext(1);
+
+        d.dispose();
+
+        ts = cf.test();
+
+        ts.assertEmpty();
+
+        cf.connect();
+
+        ts.assertEmpty();
+
+        pp.onNext(2);
+
+        ts.assertValuesOnly(2);
     }
 }
